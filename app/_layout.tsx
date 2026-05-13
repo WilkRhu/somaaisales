@@ -11,7 +11,11 @@ export default function RootLayout() {
         <Stack.Screen name="index" />
         <Stack.Screen name="splash" />
         <Stack.Screen name="store-selection" />
+        <Stack.Screen name="login" />
+        <Stack.Screen name="register" />
+        <Stack.Screen name="forgot-password" />
         <Stack.Screen name="app" />
+        <Stack.Screen name="delivery" />
       </Stack>
       <StatusBar style="light" />
     </AppProviders>

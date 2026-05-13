@@ -1,0 +1,198 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import axios from 'axios';
+
+import {
+    DeliveryCartItem,
+    DeliveryEstablishment,
+    DeliveryFeeResponse,
+    DeliveryOrder,
+    UserAddress,
+} from '@/types';
+
+const CART_KEY_PREFIX = 'somaai:delivery-cart-';
+
+const client = axios.create({
+  baseURL: 'https://somaaibackend.onrender.com',
+  timeout: 15000,
+});
+
+/** Injeta o token de autenticação nas requisições */
+export function setDeliveryAuthToken(token: string | null) {
+  if (token) {
+    client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+  } else {
+    delete client.defaults.headers.common['Authorization'];
+  }
+}
+
+export const deliveryApi = {
+  // ─── Estabelecimentos ──────────────────────────────────────────────────────
+
+  async getAvailableEstablishments(): Promise<DeliveryEstablishment[]> {
+    const { data } = await client.get('/public/establishments/delivery/available');
+    const list: any[] = Array.isArray(data?.data) ? data.data : [];
+    return list.map((item) => ({
+      id: item.id,
+      name: item.name ?? item.nome ?? 'Estabelecimento',
+      logo: item.logo ?? '',
+      isOpen: item.isOpen,
+      deliveryEnabled: item.deliveryEnabled,
+    }));
+  },
+
+  async getEstablishmentById(
+    establishmentId: string,
+    offerId?: string,
+  ): Promise<DeliveryEstablishment> {
+    const { data } = await client.get(`/public/establishments/${establishmentId}`, {
+      params: offerId ? { offerId } : undefined,
+    });
+    const est = data?.data ?? data;
+    const inventory: any[] = Array.isArray(est?.inventory) ? est.inventory : [];
+
+    return {
+      id: est.id,
+      name: est.name ?? est.nome ?? 'Estabelecimento',
+      logo: est.logo ?? '',
+      isOpen: est.isOpen,
+      deliveryEnabled: est.deliveryEnabled,
+      availablePaymentMethods: est.availablePaymentMethods,
+      deliveryPaymentTypes: est.deliveryPaymentTypes,
+      deliveryPaymentAppEnabled: est.deliveryPaymentAppEnabled,
+      inventory: inventory
+        .filter((item) => item.isActive !== false)
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          price: Number(item.offerPrice ?? item.salePrice ?? item.price ?? 0),
+          image: item.images?.[0] ?? item.image ?? item.imageUrl ?? '',
+          category: item.category ?? 'Geral',
+          description: item.description,
+          unit: item.unit,
+          currentStock: item.currentStock ?? item.quantity,
+          hasOffer: item.hasOffer ?? false,
+          offerPrice: item.offerPrice ? Number(item.offerPrice) : undefined,
+          offerDetails: item.offerDetails,
+        })),
+    };
+  },
+
+  // ─── Frete ─────────────────────────────────────────────────────────────────
+
+  async calculateFee(
+    establishmentId: string,
+    params: {
+      neighborhood: string;
+      zipCode: string;
+      latitude?: number;
+      longitude?: number;
+      subtotal: number;
+    },
+  ): Promise<DeliveryFeeResponse> {
+    const { data } = await client.post(
+      `/public/delivery/establishments/${establishmentId}/calculate-fee`,
+      params,
+    );
+    const d = data?.data ?? data;
+    return {
+      deliveryFee: Number(d.deliveryFee ?? 0),
+      isFreeDelivery: Boolean(d.isFreeDelivery),
+      freeDeliveryMinimum: d.freeDeliveryMinimum ? Number(d.freeDeliveryMinimum) : undefined,
+      estimatedTime: d.estimatedTime ? Number(d.estimatedTime) : undefined,
+      zone: d.zone,
+    };
+  },
+
+  // ─── Pedidos ───────────────────────────────────────────────────────────────
+
+  async createOrder(
+    establishmentId: string,
+    payload: {
+      customerId: string;
+      customerName: string;
+      customerEmail: string;
+      customerPhone: string;
+      deliveryAddress: string;
+      deliveryNeighborhood: string;
+      deliveryCity: string;
+      deliveryState: string;
+      deliveryZipCode: string;
+      deliveryComplement?: string;
+      deliveryReference?: string;
+      latitude?: number;
+      longitude?: number;
+      items: { itemId: string; productName: string; unitPrice: number; quantity: number; discount: number }[];
+      paymentMethod: string;
+      deliveryPaymentType: string;
+      changeFor?: string;
+      notes?: string;
+      discount?: number;
+      addressId?: string;
+    },
+  ): Promise<DeliveryOrder> {
+    const { data } = await client.post(
+      `/public/delivery/establishments/${establishmentId}/orders`,
+      payload,
+    );
+    return data?.data ?? data;
+  },
+
+  async getOrderById(orderId: string): Promise<DeliveryOrder> {
+    const { data } = await client.get(`/public/delivery/orders/${orderId}`);
+    return data?.data ?? data;
+  },
+
+  async getMyOrders(): Promise<DeliveryOrder[]> {
+    const { data } = await client.get('/public/delivery/my-orders');
+    return Array.isArray(data?.data) ? data.data : [];
+  },
+
+  // ─── Endereço do usuário ───────────────────────────────────────────────────
+
+  async getMyAddresses(): Promise<UserAddress[]> {
+    const { data } = await client.get('/public/customers/addresses');
+    return Array.isArray(data?.data) ? data.data : [];
+  },
+
+  async createAddress(payload: {
+    customerId: string;
+    establishmentId: string;
+    label?: string;
+    address: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    complement?: string;
+    reference?: string;
+    latitude?: number;
+    longitude?: number;
+    isDefault?: boolean;
+  }): Promise<UserAddress> {
+    const { data } = await client.post('/public/customers/addresses', payload);
+    return data?.data ?? data;
+  },
+
+  // ─── Carrinho local (AsyncStorage) ─────────────────────────────────────────
+
+  async saveCart(establishmentId: string, items: DeliveryCartItem[]): Promise<void> {
+    await AsyncStorage.setItem(
+      `${CART_KEY_PREFIX}${establishmentId}`,
+      JSON.stringify(items),
+    );
+  },
+
+  async loadCart(establishmentId: string): Promise<DeliveryCartItem[]> {
+    const raw = await AsyncStorage.getItem(`${CART_KEY_PREFIX}${establishmentId}`);
+    if (!raw) return [];
+    try {
+      return JSON.parse(raw) as DeliveryCartItem[];
+    } catch {
+      return [];
+    }
+  },
+
+  async clearCart(establishmentId: string): Promise<void> {
+    await AsyncStorage.removeItem(`${CART_KEY_PREFIX}${establishmentId}`);
+  },
+};
