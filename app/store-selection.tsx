@@ -13,6 +13,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Path, Svg } from 'react-native-svg';
 
 import { EmptyState } from '@/components/EmptyState';
 import { useTenant } from '@/contexts/TenantContext';
@@ -89,12 +90,16 @@ export default function StoreSelectionScreen() {
 
   const selectStore = async (store: NearbyEstablishment) => {
     try {
+      console.log('[selectStore] iniciando', { storeId: store.id, storeName: store.nome });
       const ok = await loadTenantByCode(store.id);
       if (!ok) throw new Error('Loja não encontrada');
       const appConfig = await tenantApi.getAppConsumerConfig(store.id);
+      console.log('[selectStore] appConfig recebido', appConfig);
       setAppConsumerConfig(appConfig);
+      console.log('[selectStore] appConfig salvo no store', { id: appConfig.id, appColor: appConfig.appColor });
       router.replace('/login');
     } catch (error) {
+      console.error('[selectStore] falha', error);
       Alert.alert('Erro', error instanceof Error ? error.message : 'Falha ao carregar a loja');
     }
   };
@@ -150,6 +155,12 @@ export default function StoreSelectionScreen() {
           </View>
         </View>
       </View>
+      <Svg width="100%" height={44} viewBox="0 0 390 44" preserveAspectRatio="none" style={{ marginTop: -1 }}>
+        <Path
+          d="M0,0 C65,44 130,44 195,22 C260,0 325,0 390,22 L390,0 L0,0 Z"
+          fill={C.blueDark}
+        />
+      </Svg>
 
       {/* Filtros */}
       <View style={styles.filtersCard}>

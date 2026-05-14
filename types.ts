@@ -8,6 +8,19 @@ export type TenantConfig = {
   modulos: string[];
 };
 
+export type Offer = {
+  id: string;
+  title: string;
+  description?: string;
+  discountPercentage?: number;
+  bannerImage?: string;
+  image?: string;
+  startDate?: string;
+  endDate?: string;
+  isActive?: boolean;
+  establishmentId?: string;
+};
+
 export type NearbyEstablishment = {
   id: string;
   nome: string;
@@ -33,6 +46,7 @@ export type AppConsumerConfig = {
   establishmentName?: string;
   logo: string;
   appColor: string;
+  fontColor?: string;
   screenVideo: string;
   isEnabled: boolean;
   createdAt: string;
@@ -167,7 +181,9 @@ export type UserAddress = {
   customerId?: string;
   establishmentId?: string;
   label?: string;
-  address: string;
+  street: string;
+  number: string;
+  address?: string; // fallback legado
   neighborhood: string;
   city: string;
   state: string;

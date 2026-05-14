@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
+import { HeaderWave } from '@/components/HeaderWave';
 import { useTheme } from '@/contexts/ThemeContext';
 import { deliveryApi, setDeliveryAuthToken } from '@/services/deliveryApi';
 import { useAppStore } from '@/store';
@@ -117,18 +118,21 @@ export default function DeliveryCheckoutScreen() {
   }, [address, establishmentId, subtotal]);
 
   const handleSubmit = async () => {
+    console.log('[handleSubmit] iniciado', { address, user: authSession?.user?.id, establishmentId, cart: cart.length });
     if (!authSession?.user || !address || !establishmentId) {
+      console.log('[handleSubmit] bloqueado: sem sessão, endereço ou establishmentId');
       Alert.alert('Atenção', 'Verifique seu endereço e tente novamente.');
       return;
     }
     if (cart.length === 0) {
+      console.log('[handleSubmit] bloqueado: carrinho vazio');
       Alert.alert('Carrinho vazio', 'Adicione produtos antes de finalizar.');
       return;
     }
 
     setSubmitting(true);
     try {
-      const order = await deliveryApi.createOrder(establishmentId, {
+      const payload = {
         customerId: authSession.user.id,
         customerName: authSession.user.name,
         customerEmail: authSession.user.email,
@@ -155,13 +159,19 @@ export default function DeliveryCheckoutScreen() {
         notes,
         discount: 0,
         addressId: address.id,
-      });
+      };
+      console.log('[createOrder] rota:', `POST /public/delivery/establishments/${establishmentId}/orders`);
+      console.log('[createOrder] payload:', JSON.stringify(payload, null, 2));
+      const order = await deliveryApi.createOrder(establishmentId, payload);
 
       await deliveryApi.clearCart(establishmentId);
       setCreatedOrderId(order.id);
       setSuccessModal(true);
     } catch (err: any) {
-      Alert.alert('Erro', err?.response?.data?.message ?? 'Não foi possível criar o pedido.');
+      console.error('[createOrder]', JSON.stringify(err?.response?.data ?? err?.message ?? err, null, 2));
+      const raw = err?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join('\n') : (raw ?? 'Não foi possível criar o pedido.');
+      Alert.alert('Erro', msg);
     } finally {
       setSubmitting(false);
     }
@@ -189,6 +199,7 @@ export default function DeliveryCheckoutScreen() {
         </Pressable>
         <Text style={styles.headerTitle}>Finalizar pedido</Text>
       </View>
+      <HeaderWave color={primary} />
 
       <ScrollView
         style={styles.scroll}

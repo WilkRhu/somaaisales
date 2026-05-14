@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { ResizeMode, Video } from 'expo-av';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
@@ -44,6 +45,7 @@ export default function LoginScreen() {
 
   const primaryColor = theme.colors.primary;
   const logo = theme.branding.logo;
+  const screenVideo = theme.branding.screenVideo;
   const storeName = appConsumerConfig?.establishmentName ?? tenant?.nome ?? 'SomaAI Sales';
 
   const closeModal = () => setModal(MODAL_CLOSED);
@@ -149,16 +151,28 @@ export default function LoginScreen() {
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={primaryColor} />
 
-      <View style={[styles.topSection, { backgroundColor: primaryColor }]}>
-        {logo ? (
-          <Image source={{ uri: logo }} style={styles.storeLogo} />
-        ) : (
-          <View style={[styles.logoFallback, { backgroundColor: `${primaryColor}40` }]}>
-            <Ionicons name="storefront-outline" size={36} color="#fff" />
-          </View>
-        )}
-        <Text style={styles.storeName}>{storeName}</Text>
-        <Text style={styles.storeTagline}>Área operacional da loja</Text>
+      <View style={styles.topSection}>
+        {screenVideo ? (
+          <Video
+            source={{ uri: screenVideo }}
+            style={styles.topVideo}
+            resizeMode={ResizeMode.COVER}
+            shouldPlay
+            isLooping
+            isMuted
+          />
+        ) : null}
+        <View style={[styles.topOverlay, { backgroundColor: screenVideo ? 'rgba(7,27,90,0.62)' : primaryColor }]}>
+          {logo ? (
+            <Image source={{ uri: logo }} style={styles.storeLogo} />
+          ) : (
+            <View style={[styles.logoFallback, { backgroundColor: `${primaryColor}40` }]}>
+              <Ionicons name="storefront-outline" size={36} color="#fff" />
+            </View>
+          )}
+          <Text style={styles.storeName}>{storeName}</Text>
+          <Text style={styles.storeTagline}>Área operacional da loja</Text>
+        </View>
       </View>
 
       <View style={styles.card}>
@@ -262,7 +276,9 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F5F5' },
-  topSection: { paddingTop: 64, paddingBottom: 40, alignItems: 'center', gap: 10 },
+  topSection: { minHeight: 260, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' },
+  topVideo: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  topOverlay: { flex: 1, paddingTop: 64, paddingBottom: 40, alignItems: 'center', justifyContent: 'center', gap: 10 },
   storeLogo: { width: 80, height: 80, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)' },
   logoFallback: { width: 80, height: 80, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   storeName: { fontSize: 22, fontWeight: '900', color: '#fff', letterSpacing: -0.3 },

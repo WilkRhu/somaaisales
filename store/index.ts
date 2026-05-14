@@ -1,1 +1,3 @@
-export { useAppStore, getCartTotals } from './useAppStore';
+export { getCartTotals, useAppStore } from './useAppStore';
+export { useOffersStore } from './useOffersStore';
+

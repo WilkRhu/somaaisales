@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { useTheme } from '@/contexts/ThemeContext';
+import { HeaderWave } from '@/components/HeaderWave';
 import { deliveryApi, setDeliveryAuthToken } from '@/services/deliveryApi';
 import { useAppStore } from '@/store';
 import { DeliveryOrder } from '@/types';
@@ -113,6 +114,7 @@ export default function DeliveryTrackingScreen() {
           ) : null}
         </View>
       </View>
+      <HeaderWave color={primary} />
 
       {loading ? (
         <View style={styles.center}>

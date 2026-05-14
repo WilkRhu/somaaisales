@@ -150,26 +150,56 @@ export const deliveryApi = {
   // ─── Endereço do usuário ───────────────────────────────────────────────────
 
   async getMyAddresses(): Promise<UserAddress[]> {
-    const { data } = await client.get('/public/customers/addresses');
+    const { data } = await client.get('/public/customers/me/addresses');
     return Array.isArray(data?.data) ? data.data : [];
   },
 
+  async getDefaultAddress(): Promise<UserAddress | null> {
+    const { data } = await client.get('/public/customers/me/addresses/default');
+    return data?.data ?? null;
+  },
+
   async createAddress(payload: {
-    customerId: string;
-    establishmentId: string;
+    businessConsumerId?: string;
     label?: string;
-    address: string;
+    street: string;
+    number: string;
+    complement?: string;
     neighborhood: string;
     city: string;
     state: string;
     zipCode: string;
-    complement?: string;
-    reference?: string;
     latitude?: number;
     longitude?: number;
     isDefault?: boolean;
   }): Promise<UserAddress> {
-    const { data } = await client.post('/public/customers/addresses', payload);
+    const { data } = await client.post('/public/customers/me/addresses', payload);
+    return data?.data ?? data;
+  },
+
+  async updateAddress(addressId: string, payload: Partial<{
+    label: string;
+    street: string;
+    number: string;
+    complement: string;
+    neighborhood: string;
+    city: string;
+    state: string;
+    zipCode: string;
+    latitude: number;
+    longitude: number;
+    isDefault: boolean;
+  }>): Promise<UserAddress> {
+    const { data } = await client.patch(`/public/customers/me/addresses/${addressId}`, payload);
+    return data?.data ?? data;
+  },
+
+  async deleteAddress(addressId: string): Promise<void> {
+    await client.delete(`/public/customers/me/addresses/${addressId}`);
+  },
+
+  async setDefaultAddress(addressId: string): Promise<UserAddress> {
+    const { data } = await client.patch(`/public/customers/me/addresses/${addressId}/set-default`);
     return data?.data ?? data;
   },
 

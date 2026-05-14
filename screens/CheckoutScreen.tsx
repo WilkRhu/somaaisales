@@ -18,6 +18,7 @@ import {
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
+import { HeaderWave } from '@/components/HeaderWave';
 import { useCart } from '@/contexts/CartContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { deliveryApi, setDeliveryAuthToken } from '@/services/deliveryApi';
@@ -53,6 +54,8 @@ export default function CheckoutScreen() {
   const [loadingAddress, setLoadingAddress] = useState(true);
   const [feeData, setFeeData] = useState<DeliveryFeeResponse | null>(null);
   const [loadingFee, setLoadingFee] = useState(false);
+  const [addresses, setAddresses] = useState<UserAddress[]>([]);
+  const [loadingAddresses, setLoadingAddresses] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('PIX');
   const [changeFor, setChangeFor] = useState('');
   const [notes, setNotes] = useState('');
@@ -62,9 +65,10 @@ export default function CheckoutScreen() {
 
   // Modal novo endereço
   const [addressModal, setAddressModal] = useState(false);
+  const [addressPickerModal, setAddressPickerModal] = useState(false);
   const [newAddr, setNewAddr] = useState({
-    label: '', address: '', complement: '', neighborhood: '',
-    city: '', state: '', zipCode: '', reference: '',
+    label: '', street: '', number: '', complement: '', neighborhood: '',
+    city: '', state: '', zipCode: '',
   });
   const [savingAddress, setSavingAddress] = useState(false);
   const [gettingLocation, setGettingLocation] = useState(false);
@@ -83,6 +87,7 @@ export default function CheckoutScreen() {
       setLoadingAddress(true);
       try {
         const addresses = await deliveryApi.getMyAddresses();
+        setAddresses(addresses);
         setAddress(addresses.find((a) => a.isDefault) ?? addresses[0] ?? null);
       } catch { /* sem endereço */ } finally { setLoadingAddress(false); }
     };
@@ -112,33 +117,37 @@ export default function CheckoutScreen() {
   }, [address, establishmentId, totalPrice]);
 
   const handleSubmit = async () => {
+    console.log('[handleSubmit] iniciado', { address, user: authSession?.user?.id, establishmentId, items: items.length });
     if (!address) {
+      console.log('[handleSubmit] bloqueado: sem endereço');
       Alert.alert('Endereço obrigatório', 'Adicione um endereço de entrega para continuar.');
       setAddressModal(true);
       return;
     }
     if (!authSession?.user || !establishmentId) {
+      console.log('[handleSubmit] bloqueado: sem sessão ou establishmentId');
       Alert.alert('Atenção', 'Sessão inválida. Faça login novamente.');
       return;
     }
     if (items.length === 0) {
+      console.log('[handleSubmit] bloqueado: carrinho vazio');
       Alert.alert('Carrinho vazio', 'Adicione produtos antes de finalizar.');
       return;
     }
     setSubmitting(true);
     try {
-      const order = await deliveryApi.createOrder(establishmentId, {
+      const payload = {
         customerId: authSession.user.id,
         customerName: authSession.user.name,
         customerEmail: authSession.user.email,
         customerPhone: authSession.user.phone ?? '',
-        deliveryAddress: address.address,
+        deliveryAddress: `${address.street}${address.number ? `, ${address.number}` : ''}`,
         deliveryNeighborhood: address.neighborhood,
         deliveryCity: address.city,
         deliveryState: address.state,
         deliveryZipCode: address.zipCode,
         deliveryComplement: address.complement,
-        deliveryReference: address.reference,
+        deliveryReference: undefined,
         latitude: address.latitude,
         longitude: address.longitude,
         items: items.map((i) => ({
@@ -154,12 +163,18 @@ export default function CheckoutScreen() {
         notes,
         discount: 0,
         addressId: address.id,
-      });
+      };
+      console.log('[createOrder] rota:', `POST /public/delivery/establishments/${establishmentId}/orders`);
+      console.log('[createOrder] payload:', JSON.stringify(payload, null, 2));
+      const order = await deliveryApi.createOrder(establishmentId, payload);
       clearCart();
       setCreatedOrderId(order.id);
       setSuccessModal(true);
     } catch (err: any) {
-      Alert.alert('Erro', err?.response?.data?.message ?? 'Não foi possível criar o pedido.');
+      console.error('[createOrder]', JSON.stringify(err?.response?.data ?? err?.message ?? err, null, 2));
+      const raw = err?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join('\n') : (raw ?? 'Não foi possível criar o pedido.');
+      Alert.alert('Erro', msg);
     } finally { setSubmitting(false); }
   };
 
@@ -186,7 +201,7 @@ export default function CheckoutScreen() {
         setNewAddr((p) => ({
           ...p,
           zipCode: formatted,
-          address: data.logradouro ? `${data.logradouro}` : p.address,
+          street: data.logradouro ? `${data.logradouro}` : p.street,
           neighborhood: data.bairro || p.neighborhood,
           city: data.localidade || p.city,
           state: data.uf || p.state,
@@ -215,68 +230,62 @@ export default function CheckoutScreen() {
   };
 
   const handleSaveAddress = async () => {
-    const { address: addr, neighborhood, city, state, zipCode } = newAddr;
-    if (!addr || !neighborhood || !city || !state || !zipCode) {
-      Alert.alert('Atenção', 'Preencha os campos obrigatórios: endereço, bairro, cidade, estado e CEP.');
+    const { street, number, neighborhood, city, state, zipCode } = newAddr;
+    if (!street || !number || !neighborhood || !city || !state || !zipCode) {
+      Alert.alert('Atenção', 'Preencha os campos obrigatórios: rua, número, bairro, cidade, estado e CEP.');
       return;
     }
-    if (!authSession?.user?.id || !establishmentId) return;
     setSavingAddress(true);
     try {
-      let saved: UserAddress;
-      try {
-        saved = await deliveryApi.createAddress({
-          customerId: authSession.user.id,
-          establishmentId,
-          label: newAddr.label || 'Casa',
-          address: newAddr.address,
-          complement: newAddr.complement || undefined,
-          neighborhood: newAddr.neighborhood,
-          city: newAddr.city,
-          state: newAddr.state,
-          zipCode: newAddr.zipCode,
-          reference: newAddr.reference || undefined,
-          latitude: newAddrCoords?.latitude,
-          longitude: newAddrCoords?.longitude,
-          isDefault: !address,
-        });
-      } catch (apiErr: any) {
-        // Se a API falhar (rota não existe ou erro de servidor), usa o endereço localmente
-        const status = apiErr?.response?.status;
-        const msg = apiErr?.response?.data?.message ?? apiErr?.message ?? 'Erro desconhecido';
-        console.warn(`[createAddress] status=${status} msg=${msg}`);
-
-        if (status === 401) {
-          Alert.alert('Sessão expirada', 'Faça login novamente para continuar.');
-          return;
-        }
-
-        // Fallback: monta o objeto localmente sem persistir no backend
-        saved = {
-          id: `local-${Date.now()}`,
-          customerId: authSession.user.id,
-          establishmentId,
-          label: newAddr.label || 'Casa',
-          address: newAddr.address,
-          complement: newAddr.complement || undefined,
-          neighborhood: newAddr.neighborhood,
-          city: newAddr.city,
-          state: newAddr.state,
-          zipCode: newAddr.zipCode,
-          reference: newAddr.reference || undefined,
-          latitude: newAddrCoords?.latitude,
-          longitude: newAddrCoords?.longitude,
-          isDefault: true,
-        };
-      }
-
+      const payload = {
+        businessConsumerId: authSession?.user?.id,
+        label: newAddr.label || 'Casa',
+        street: newAddr.street,
+        number: newAddr.number,
+        complement: newAddr.complement || undefined,
+        neighborhood: newAddr.neighborhood,
+        city: newAddr.city,
+        state: newAddr.state,
+        zipCode: newAddr.zipCode.replace(/\D/g, ''),
+        latitude: newAddrCoords?.latitude,
+        longitude: newAddrCoords?.longitude,
+        isDefault: !address,
+      };
+      console.log('[createAddress][CheckoutScreen] payload:', JSON.stringify(payload, null, 2));
+      const saved = await deliveryApi.createAddress(payload);
+      setAddresses((prev) => [...prev, saved]);
       setAddress(saved);
       setAddressModal(false);
       setNewAddrCoords(null);
-      setNewAddr({ label: '', address: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '', reference: '' });
+      setNewAddr({ label: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '' });
     } catch (err: any) {
-      Alert.alert('Erro', err?.message ?? 'Não foi possível salvar o endereço.');
+      const status = err?.response?.status;
+      if (status === 401) { Alert.alert('Sessão expirada', 'Faça login novamente.'); return; }
+      const raw = err?.response?.data?.message;
+      const msg = Array.isArray(raw) ? raw.join('\n') : (raw ?? err?.message ?? 'Não foi possível salvar o endereço.');
+      Alert.alert('Erro', msg);
     } finally { setSavingAddress(false); }
+  };
+
+  const openAddressPicker = async () => {
+    if (addresses.length === 0) {
+      setLoadingAddresses(true);
+      try {
+        const list = await deliveryApi.getMyAddresses();
+        setAddresses(list);
+      } catch {
+        Alert.alert('Endereços', 'Não foi possível carregar seus endereços.');
+        return;
+      } finally {
+        setLoadingAddresses(false);
+      }
+    }
+    setAddressPickerModal(true);
+  };
+
+  const selectExistingAddress = (addr: UserAddress) => {
+    setAddress(addr);
+    setAddressPickerModal(false);
   };
 
   return (
@@ -292,6 +301,7 @@ export default function CheckoutScreen() {
           <Text style={styles.headerSub}>{totalItems} {totalItems === 1 ? 'item' : 'itens'}</Text>
         </View>
       </View>
+      <HeaderWave color={primary} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
@@ -307,12 +317,12 @@ export default function CheckoutScreen() {
             <View>
               <View style={styles.addressBlock}>
                 {address.label ? <Text style={styles.addressLabel}>{address.label}</Text> : null}
-                <Text style={styles.addressMain}>{address.address}</Text>
+                <Text style={styles.addressMain}>{address.street}{address.number ? `, ${address.number}` : ''}</Text>
                 <Text style={styles.addressSub}>{address.neighborhood} — {address.city}/{address.state}</Text>
                 <Text style={styles.addressSub}>{address.zipCode}</Text>
                 {address.complement ? <Text style={styles.addressSub}>{address.complement}</Text> : null}
               </View>
-              <Pressable style={styles.changeAddressBtn} onPress={() => setAddressModal(true)}>
+              <Pressable style={styles.changeAddressBtn} onPress={openAddressPicker}>
                 <Ionicons name="pencil-outline" size={14} color={primary} />
                 <Text style={[styles.changeAddressBtnText, { color: primary }]}>Trocar endereço</Text>
               </Pressable>
@@ -534,8 +544,15 @@ export default function CheckoutScreen() {
               </View>
 
               {/* 3. Campos preenchidos pelo CEP (editáveis) */}
-              <AddrField label="Endereço completo *" value={newAddr.address} onChangeText={(v) => setNewAddr((p) => ({ ...p, address: v }))} placeholder="Ex: Rua das Flores, 123" />
-              <AddrField label="Complemento" value={newAddr.complement} onChangeText={(v) => setNewAddr((p) => ({ ...p, complement: v }))} placeholder="Apto, bloco..." />
+              <AddrField label="Rua *" value={newAddr.street} onChangeText={(v) => setNewAddr((p) => ({ ...p, street: v }))} placeholder="Ex: Rua das Flores" />
+              <View style={styles.addrRow}>
+                <View style={{ flex: 1 }}>
+                  <AddrField label="Número *" value={newAddr.number} onChangeText={(v) => setNewAddr((p) => ({ ...p, number: v }))} placeholder="123" />
+                </View>
+                <View style={{ flex: 2 }}>
+                  <AddrField label="Complemento" value={newAddr.complement} onChangeText={(v) => setNewAddr((p) => ({ ...p, complement: v }))} placeholder="Apto, bloco..." />
+                </View>
+              </View>
               <AddrField label="Bairro *" value={newAddr.neighborhood} onChangeText={(v) => setNewAddr((p) => ({ ...p, neighborhood: v }))} placeholder="Ex: Centro" />
               <View style={styles.addrRow}>
                 <View style={{ flex: 2 }}>
@@ -545,7 +562,6 @@ export default function CheckoutScreen() {
                   <AddrField label="Estado *" value={newAddr.state} onChangeText={(v) => setNewAddr((p) => ({ ...p, state: v.toUpperCase().slice(0, 2) }))} placeholder="PE" autoCapitalize="characters" />
                 </View>
               </View>
-              <AddrField label="Referência" value={newAddr.reference} onChangeText={(v) => setNewAddr((p) => ({ ...p, reference: v }))} placeholder="Ex: Próximo à padaria" />
               <AddrField label="Identificação" value={newAddr.label} onChangeText={(v) => setNewAddr((p) => ({ ...p, label: v }))} placeholder="Ex: Casa, Trabalho..." />
 
             </ScrollView>
@@ -558,6 +574,56 @@ export default function CheckoutScreen() {
             </Pressable>
           </View>
         </KeyboardAvoidingView>
+      </Modal>
+
+      <Modal visible={addressPickerModal} animationType="slide" transparent statusBarTranslucent onRequestClose={() => setAddressPickerModal(false)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setAddressPickerModal(false)}>
+          <Pressable style={styles.modalSheet} onPress={() => {}}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Trocar endereço</Text>
+              <Pressable onPress={() => setAddressPickerModal(false)}>
+                <Ionicons name="close" size={22} color="#6B7280" />
+              </Pressable>
+            </View>
+
+            {loadingAddresses ? (
+              <ActivityIndicator size="small" color={primary} />
+            ) : addresses.length === 0 ? (
+              <Text style={styles.noAddress}>Você ainda não tem endereços salvos.</Text>
+            ) : (
+              <ScrollView style={{ maxHeight: 420 }} showsVerticalScrollIndicator={false}>
+                <View style={styles.addressPickerList}>
+                  {addresses.map((addr) => {
+                    const isActive = address?.id === addr.id;
+                    return (
+                      <Pressable
+                        key={addr.id}
+                        style={[styles.addressPickerItem, isActive && { borderColor: primary, backgroundColor: `${primary}08` }]}
+                        onPress={() => selectExistingAddress(addr)}>
+                        <View style={styles.addressPickerText}>
+                          {addr.label ? <Text style={styles.addressLabel}>{addr.label}</Text> : null}
+                          <Text style={styles.addressMain}>{addr.street}{addr.number ? `, ${addr.number}` : ''}</Text>
+                          <Text style={styles.addressSub}>{addr.neighborhood} — {addr.city}/{addr.state}</Text>
+                          <Text style={styles.addressSub}>{addr.zipCode}</Text>
+                        </View>
+                        <Ionicons name={isActive ? 'radio-button-on' : 'ellipse-outline'} size={20} color={isActive ? primary : '#D1D5DB'} />
+                      </Pressable>
+                    );
+                  })}
+                </View>
+              </ScrollView>
+            )}
+
+            <Pressable
+              style={[styles.modalSaveBtn, { backgroundColor: primary }]}
+              onPress={() => {
+                setAddressPickerModal(false);
+                setAddressModal(true);
+              }}>
+              <Text style={styles.modalSaveBtnText}>Adicionar novo endereço</Text>
+            </Pressable>
+          </Pressable>
+        </Pressable>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -620,6 +686,18 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 17, fontWeight: '900', color: '#071B5A' },
   modalContent: { gap: 12, paddingBottom: 8 },
   addrRow: { flexDirection: 'row', gap: 10 },
+  addressPickerList: { gap: 10, paddingVertical: 4 },
+  addressPickerItem: {
+    borderWidth: 1.5,
+    borderColor: '#E5E7EB',
+    borderRadius: 14,
+    padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    justifyContent: 'space-between',
+  },
+  addressPickerText: { flex: 1, gap: 3 },
   addrFieldWrap: { gap: 5 },
   addrLabel: { fontSize: 12, fontWeight: '700', color: '#374151' },
   addrInput: { backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 11, fontSize: 14, color: '#111827' },

@@ -5,6 +5,7 @@ import { Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 
 import { useCart } from '@/contexts/CartContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
+import { HeaderWave } from '@/components/HeaderWave';
 import { useAppStore } from '@/store';
 
 export default function CartScreen() {
@@ -37,6 +38,7 @@ export default function CartScreen() {
           </View>
         )}
       </View>
+      <HeaderWave color={primaryColor} />
 
       {isEmpty ? (
         /* Estado vazio */

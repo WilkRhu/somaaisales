@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
+import { HeaderWave } from '@/components/HeaderWave';
 import { useTheme } from '@/contexts/ThemeContext';
 import { deliveryApi } from '@/services/deliveryApi';
 import { useAppStore } from '@/store';
@@ -69,6 +70,12 @@ export default function DeliveryIndexScreen() {
           <Ionicons name="bicycle-outline" size={22} color="#fff" />
         </View>
       </View>
+      <HeaderWave color={primary} />
+
+      <Pressable style={[styles.ordersBtn, { borderColor: primary }]} onPress={() => router.push('/delivery/orders')}>
+        <Ionicons name="receipt-outline" size={18} color={primary} />
+        <Text style={[styles.ordersBtnText, { color: primary }]}>Meus pedidos</Text>
+      </Pressable>
 
       {loading ? (
         <View style={styles.center}>
@@ -174,6 +181,19 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 20, fontWeight: '900', color: '#fff' },
   headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.7)', fontWeight: '500' },
   headerIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  ordersBtn: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    borderWidth: 1.5,
+    borderRadius: 14,
+    paddingVertical: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 8,
+    backgroundColor: '#fff',
+  },
+  ordersBtnText: { fontSize: 13, fontWeight: '800' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12, paddingVertical: 48 },
   loadingText: { color: '#6B7280', fontWeight: '600' },
   emptyText: { color: '#9CA3AF', fontWeight: '600', fontSize: 15 },

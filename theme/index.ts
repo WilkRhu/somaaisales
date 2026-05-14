@@ -9,7 +9,7 @@ export const buildTenantTheme = (tenant?: Tenant | null, appConfig?: AppConsumer
     accentLight: '#A855F7',
     background: '#F5F5F5',
     surface: '#ffffff',
-    text: '#111827',
+    text: appConfig?.fontColor ?? '#111827',
     muted: '#6b7280',
     success: '#10b981',
     border: '#e5e7eb',

@@ -6,12 +6,14 @@ import {
     Animated,
     FlatList,
     Image,
+    Modal,
     Pressable,
     RefreshControl,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
-    View,
+    View
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
@@ -43,6 +45,7 @@ export default function DeliveryProductsScreen() {
   // Modais de bloqueio
   const [deliveryDisabledModal, setDeliveryDisabledModal] = useState(false);
   const [closedModal, setClosedModal] = useState(false);
+  const [cartPreviewVisible, setCartPreviewVisible] = useState(false);
 
   const loadData = useCallback(
     async (isRefresh = false) => {
@@ -310,20 +313,102 @@ export default function DeliveryProductsScreen() {
       {/* Barra flutuante do carrinho */}
       {totalItems > 0 && !loading && (
         <View style={styles.cartBar}>
-          <Pressable style={[styles.cartBarBtn, { backgroundColor: primary }]} onPress={goToCheckout}>
+          <Pressable style={[styles.cartBarBtn, { backgroundColor: primary }]} onPress={() => setCartPreviewVisible(true)}>
             <View style={styles.cartBarBadge}>
               <Text style={styles.cartBarBadgeText}>{totalItems}</Text>
             </View>
             <Text style={styles.cartBarText}>Ver carrinho</Text>
             <Text style={styles.cartBarPrice}>
               R${' '}
-              {cart
-                .reduce((s, i) => s + i.product.price * i.quantity, 0)
-                .toFixed(2)}
+              {cart.reduce((s, i) => s + i.product.price * i.quantity, 0).toFixed(2)}
             </Text>
           </Pressable>
         </View>
       )}
+
+      {/* Popup prévia do carrinho */}
+      <Modal
+        visible={cartPreviewVisible}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setCartPreviewVisible(false)}>
+        <Pressable style={styles.previewOverlay} onPress={() => setCartPreviewVisible(false)}>
+          <Pressable style={styles.previewSheet} onPress={() => {}}>
+            {/* Handle */}
+            <View style={styles.previewHandle} />
+
+            <View style={styles.previewHeader}>
+              <Text style={styles.previewTitle}>Carrinho</Text>
+              <Pressable onPress={() => setCartPreviewVisible(false)}>
+                <Ionicons name="close" size={22} color="#374151" />
+              </Pressable>
+            </View>
+
+            <ScrollView
+              style={styles.previewScroll}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={styles.previewScrollContent}>
+              {cart.map((item, idx) => (
+                <View key={item.product.id}>
+                  <View style={styles.previewItem}>
+                    {item.product.image ? (
+                      <Image source={{ uri: item.product.image }} style={styles.previewItemImage} />
+                    ) : (
+                      <View style={[styles.previewItemImage, { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }]}>
+                        <Ionicons name="cube-outline" size={20} color="#D1D5DB" />
+                      </View>
+                    )}
+                    <View style={styles.previewItemInfo}>
+                      <Text style={styles.previewItemName} numberOfLines={2}>{item.product.name}</Text>
+                      <Text style={[styles.previewItemPrice, { color: primary }]}>
+                        R$ {item.product.price.toFixed(2)}
+                        {item.product.unit ? ` /${item.product.unit}` : ''}
+                      </Text>
+                    </View>
+                    <View style={styles.previewQtyRow}>
+                      <Pressable
+                        style={[styles.previewQtyBtn, { borderColor: `${primary}40` }]}
+                        onPress={() => removeFromCart(item.product.id)}>
+                        <Ionicons
+                          name={item.quantity === 1 ? 'trash-outline' : 'remove'}
+                          size={14}
+                          color={item.quantity === 1 ? '#EF4444' : primary}
+                        />
+                      </Pressable>
+                      <Text style={styles.previewQtyText}>{item.quantity}</Text>
+                      <Pressable
+                        style={[styles.previewQtyBtn, { backgroundColor: primary, borderColor: primary }]}
+                        onPress={() => addToCart(item.product)}>
+                        <Ionicons name="add" size={14} color="#fff" />
+                      </Pressable>
+                    </View>
+                  </View>
+                  {idx < cart.length - 1 && <View style={styles.previewDivider} />}
+                </View>
+              ))}
+            </ScrollView>
+
+            {/* Totais */}
+            <View style={styles.previewTotals}>
+              <View style={styles.previewTotalRow}>
+                <Text style={styles.previewTotalLabel}>
+                  {totalItems} {totalItems === 1 ? 'item' : 'itens'}
+                </Text>
+                <Text style={[styles.previewTotalValue, { color: primary }]}>
+                  R$ {cart.reduce((s, i) => s + i.product.price * i.quantity, 0).toFixed(2)}
+                </Text>
+              </View>
+              <Pressable
+                style={[styles.previewCheckoutBtn, { backgroundColor: primary }]}
+                onPress={() => { setCartPreviewVisible(false); goToCheckout(); }}>
+                <Text style={styles.previewCheckoutBtnText}>Finalizar pedido</Text>
+                <Ionicons name="arrow-forward" size={18} color={primary} style={styles.previewCheckoutArrow} />
+              </Pressable>
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       {/* Toast */}
       {toastProduct && (
@@ -454,4 +539,53 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6,
   },
   toastText: { color: '#fff', fontWeight: '700', fontSize: 14, maxWidth: 220 },
+
+  // Popup prévia do carrinho
+  previewOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)', justifyContent: 'flex-end',
+  },
+  previewSheet: {
+    backgroundColor: '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    paddingTop: 12, maxHeight: '75%',
+    shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 20, shadowOffset: { width: 0, height: -4 }, elevation: 10,
+  },
+  previewHandle: {
+    width: 40, height: 4, borderRadius: 2, backgroundColor: '#E5E7EB',
+    alignSelf: 'center', marginBottom: 12,
+  },
+  previewHeader: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    paddingHorizontal: 20, paddingBottom: 12,
+    borderBottomWidth: 1, borderBottomColor: '#F3F4F6',
+  },
+  previewTitle: { fontSize: 17, fontWeight: '900', color: '#071B5A' },
+  previewScroll: { flexGrow: 0 },
+  previewScrollContent: { paddingHorizontal: 20, paddingVertical: 8 },
+  previewItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10 },
+  previewItemImage: { width: 56, height: 56, borderRadius: 12 },
+  previewItemInfo: { flex: 1, gap: 3 },
+  previewItemName: { fontSize: 13, fontWeight: '700', color: '#111827', lineHeight: 18 },
+  previewItemPrice: { fontSize: 13, fontWeight: '800' },
+  previewQtyRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  previewQtyBtn: {
+    width: 28, height: 28, borderRadius: 8, borderWidth: 1.5,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  previewQtyText: { fontSize: 14, fontWeight: '800', color: '#111827', minWidth: 16, textAlign: 'center' },
+  previewDivider: { height: 1, backgroundColor: '#F9FAFB' },
+  previewTotals: {
+    padding: 20, paddingBottom: 36,
+    borderTopWidth: 1, borderTopColor: '#F3F4F6', gap: 12,
+  },
+  previewTotalRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  previewTotalLabel: { fontSize: 14, color: '#6B7280', fontWeight: '600' },
+  previewTotalValue: { fontSize: 20, fontWeight: '900' },
+  previewCheckoutBtn: {
+    borderRadius: 16, paddingVertical: 14, paddingHorizontal: 20,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+  },
+  previewCheckoutBtnText: { color: '#fff', fontWeight: '800', fontSize: 16, flex: 1, textAlign: 'center' },
+  previewCheckoutArrow: {
+    backgroundColor: '#fff', borderRadius: 8, padding: 4, overflow: 'hidden',
+  },
 });

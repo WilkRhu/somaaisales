@@ -36,6 +36,13 @@ export const authApi = {
     const { data } = await client.post(url, payload);
     return data?.data ?? data;
   },
+
+  async updateProfile(token: string, updates: { name?: string; phone?: string; birthDate?: string; avatar?: string }) {
+    const { data } = await client.patch('/public/customers/me', updates, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return data?.data ?? data;
+  },
 };
 
 export const tenantApi = {
@@ -80,13 +87,15 @@ export const tenantApi = {
   async getAppConsumerConfig(establishmentId: string): Promise<AppConsumerConfig> {
     try {
       const { data } = await client.get(`/public/establishments/${establishmentId}/app-consumer`);
-      return data?.data ?? data;
+      const payload = data?.data ?? data;
+      return payload;
     } catch {
       return {
         id: 'app-consumer-123',
         establishmentId,
         logo: 'https://cdn.suaapp.com/logo.png',
         appColor: '#12AB34',
+        fontColor: '#111827',
         screenVideo: 'https://cdn.suaapp.com/screen.mp4',
         isEnabled: true,
         createdAt: new Date().toISOString(),
@@ -118,5 +127,28 @@ export const tenantApi = {
           offerDetails: item.offerDetails,
         };
       });
+  },
+
+  async getOffers(establishmentId: string): Promise<Offer[]> {
+    try {
+      const { data } = await client.get(`/public/offers/establishments/${establishmentId}`);
+      const list: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
+      return list
+        .filter((o) => o.isActive !== false)
+        .map((o): Offer => ({
+          id: o.id,
+          title: o.title ?? o.name ?? 'Oferta',
+          description: o.description,
+          discountPercentage: o.discountPercentage,
+          bannerImage: o.bannerImage ?? o.banner ?? o.image ?? o.imageUrl ?? '',
+          image: o.image ?? o.bannerImage ?? o.banner ?? '',
+          startDate: o.startDate,
+          endDate: o.endDate,
+          isActive: o.isActive,
+          establishmentId: o.establishmentId,
+        }));
+    } catch {
+      return [];
+    }
   },
 };
