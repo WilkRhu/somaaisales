@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
@@ -32,7 +33,7 @@ export default function RegisterScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [photo, setPhoto] = useState<{ uri: string; base64: string } | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>(CLOSED);
 
   const tenant = useAppStore((state) => state.tenant);
@@ -47,25 +48,23 @@ export default function RegisterScreen() {
   const showModal = (s: Omit<ModalState, 'visible'>) => setModal({ visible: true, ...s });
 
   const openCamera = async () => {
-    closeModal();
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       showModal({ title: 'Permissão necessária', message: 'Precisamos de acesso à câmera.', icon: 'camera-outline', iconColor: primaryColor });
       return;
     }
-    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8, base64: true });
-    if (!result.canceled) setPhoto({ uri: result.assets[0].uri, base64: result.assets[0].base64 ?? '' });
+    const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (!result.canceled) setPhoto(result.assets[0].uri);
   };
 
   const openGallery = async () => {
-    closeModal();
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
       showModal({ title: 'Permissão necessária', message: 'Precisamos de acesso à galeria.', icon: 'images-outline', iconColor: primaryColor });
       return;
     }
-    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8, base64: true });
-    if (!result.canceled) setPhoto({ uri: result.assets[0].uri, base64: result.assets[0].base64 ?? '' });
+    const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], allowsEditing: true, aspect: [1, 1], quality: 0.8 });
+    if (!result.canceled) setPhoto(result.assets[0].uri);
   };
 
   const pickPhoto = () => {
@@ -82,6 +81,11 @@ export default function RegisterScreen() {
     });
   };
 
+  const toBase64 = async (uri: string): Promise<string> => {
+    const base64 = await FileSystem.readAsStringAsync(uri, { encoding: 'base64' as any });
+    const ext = uri.split('.').pop()?.toLowerCase() ?? 'jpeg';
+    return `data:${ext === 'png' ? 'image/png' : 'image/jpeg'};base64,${base64}`;
+  };
 
   const formatCpf = (v: string) => {
     const d = v.replace(/\D/g, '').slice(0, 11);
@@ -132,7 +136,8 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      const avatarBase64 = photo?.base64 ? `data:image/jpeg;base64,${photo.base64}` : undefined;
+      let avatarBase64: string | null = null;
+      if (photo) avatarBase64 = await toBase64(photo);
 
       await authApi.registerCustomer(tenant.id, {
         name: name.trim(),
@@ -140,8 +145,8 @@ export default function RegisterScreen() {
         phone: phone.replace(/\D/g, '').replace(/^(\d{2})/, '+$1'),
         cpf: cpf.replace(/\D/g, ''),
         birthDate: isoDate,
-        password,
         avatar: avatarBase64,
+        password: ''
       });
 
       showModal({
@@ -187,10 +192,11 @@ export default function RegisterScreen() {
           <Text style={styles.cardTitle}>Cadastro</Text>
           <Text style={styles.cardSubtitle}>Preencha os dados para criar sua conta</Text>
 
+          {/* Avatar */}
           <View style={styles.avatarSection}>
             <Pressable style={styles.avatarWrap} onPress={pickPhoto}>
               {photo ? (
-                <Image source={{ uri: photo.uri }} style={styles.avatarImage} />
+                <Image source={{ uri: photo }} style={styles.avatarImage} />
               ) : (
                 <View style={[styles.avatarPlaceholder, { backgroundColor: `${primaryColor}12` }]}>
                   <Ionicons name="person-outline" size={36} color={primaryColor} />

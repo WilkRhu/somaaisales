@@ -2,18 +2,19 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Image,
-    Modal,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  useWindowDimensions,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Path, Svg } from 'react-native-svg';
@@ -53,6 +54,9 @@ export default function HomeScreen() {
   const [activeSlide, setActiveSlide] = useState(0);
 
   const { offers, loading: offersLoading, fetchOffers } = useOffersStore();
+  const { width: screenWidth } = useWindowDimensions();
+  const SLIDE_WIDTH = screenWidth - 32; // 16px margin cada lado
+  const autoPlayRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const primary = theme.colors.primary;
   const storeName = appConsumerConfig?.establishmentName ?? tenant?.nome ?? 'SomaAI Sales';
@@ -70,10 +74,25 @@ export default function HomeScreen() {
       .then(setProducts)
       .catch(() => setProducts([]))
       .finally(() => { setLoading(false); setRefreshing(false); });
+    if (isRefresh) fetchOffers(establishmentId, true, authSession?.accessToken);
   };
 
   useEffect(() => { fetchProducts(); }, [establishmentId]);
-  useEffect(() => { if (establishmentId) fetchOffers(establishmentId); }, [establishmentId]);
+  useEffect(() => {
+    if (establishmentId) fetchOffers(establishmentId, true, authSession?.accessToken);
+  }, [establishmentId]);
+
+  useEffect(() => {
+    if (offers.length <= 1) return;
+    autoPlayRef.current = setInterval(() => {
+      setActiveSlide((prev) => {
+        const next = (prev + 1) % offers.length;
+        carouselRef.current?.scrollToIndex({ index: next, animated: true });
+        return next;
+      });
+    }, 3500);
+    return () => { if (autoPlayRef.current) clearInterval(autoPlayRef.current); };
+  }, [offers.length]);
 
   const showToast = (name: string) => {
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
@@ -190,21 +209,25 @@ export default function HomeScreen() {
 
             {/* Carrossel de ofertas — só exibe se houver ofertas */}
             {!offersLoading && offers.length > 0 && (
-              <View>
+              <View style={{ marginTop: 16 }}>
                 <FlatList
                   ref={carouselRef}
                   data={offers}
                   keyExtractor={(o) => o.id}
                   horizontal
-                  pagingEnabled
+                  pagingEnabled={false}
+                  snapToInterval={SLIDE_WIDTH + 12}
+                  snapToAlignment="start"
+                  decelerationRate="fast"
                   showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={{ paddingHorizontal: 16, gap: 12 }}
                   onMomentumScrollEnd={(e) => {
-                    const idx = Math.round(e.nativeEvent.contentOffset.x / e.nativeEvent.layoutMeasurement.width);
+                    const idx = Math.round(e.nativeEvent.contentOffset.x / (SLIDE_WIDTH + 12));
                     setActiveSlide(idx);
                   }}
-                  style={styles.carousel}
+                  getItemLayout={(_, index) => ({ length: SLIDE_WIDTH + 12, offset: (SLIDE_WIDTH + 12) * index, index })}
                   renderItem={({ item }) => (
-                    <View style={styles.carouselSlide}>
+                    <View style={[styles.carouselSlide, { width: SLIDE_WIDTH }]}>
                       {item.bannerImage ? (
                         <Image source={{ uri: item.bannerImage }} style={styles.carouselImage} />
                       ) : (
@@ -213,7 +236,6 @@ export default function HomeScreen() {
                           <Text style={[styles.carouselFallbackText, { color: primary }]}>{item.title}</Text>
                         </View>
                       )}
-                      {/* Overlay com info */}
                       <View style={styles.carouselOverlay}>
                         {item.discountPercentage ? (
                           <View style={[styles.carouselBadge, { backgroundColor: primary }]}>
@@ -228,7 +250,6 @@ export default function HomeScreen() {
                     </View>
                   )}
                 />
-                {/* Dots */}
                 {offers.length > 1 && (
                   <View style={styles.dotsRow}>
                     {offers.map((_offer, i) => (
@@ -649,8 +670,8 @@ const styles = StyleSheet.create({
   banner: { height: 160, backgroundColor: '#e5e7eb', marginHorizontal: 16, marginTop: 16, borderRadius: 20 },
   bannerFallback: { height: 160, marginHorizontal: 16, marginTop: 16, borderRadius: 20, alignItems: 'center', justifyContent: 'center', gap: 8 },
   bannerFallbackText: { fontSize: 15, fontWeight: '700' },
-  carousel: { marginHorizontal: 16, marginTop: 16, borderRadius: 20, overflow: 'hidden' },
-  carouselSlide: { width: 343, height: 160, borderRadius: 20, overflow: 'hidden', position: 'relative' },
+  carousel: { marginTop: 16 },
+  carouselSlide: { height: 160, borderRadius: 20, overflow: 'hidden', position: 'relative' },
   carouselImage: { width: '100%', height: '100%' },
   carouselFallbackText: { fontSize: 15, fontWeight: '700' },
   carouselOverlay: {
@@ -674,7 +695,7 @@ const styles = StyleSheet.create({
   sectionCount: { fontSize: 14, fontWeight: '500', color: '#9CA3AF' },
 
   // Lista
-  listContent: { paddingBottom: 100 },
+  listContent: { paddingBottom: 100, gap: 12 },
   columnWrapper: { gap: 12, paddingHorizontal: 16 },
   center: { alignItems: 'center', paddingVertical: 48, gap: 12 },
   loadingText: { color: '#6B7280', fontWeight: '600' },

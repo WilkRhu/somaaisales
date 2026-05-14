@@ -137,25 +137,26 @@ export const tenantApi = {
       });
   },
 
-  async getOffers(establishmentId: string): Promise<Offer[]> {
+  async getOffers(establishmentId: string, token?: string): Promise<Offer[]> {
     try {
-      const { data } = await client.get(`/public/offers/establishments/${establishmentId}`);
+      const { data } = await client.get(`/public/offers/establishments/${establishmentId}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+      });
       const list: any[] = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];
       return list
-        .filter((o) => o.isActive !== false)
         .map((o): Offer => ({
           id: o.id,
-          title: o.title ?? o.name ?? 'Oferta',
-          description: o.description,
+          title: o.title ?? o.name ?? o.item?.name ?? 'Oferta',
+          description: o.description ?? o.item?.description,
           discountPercentage: o.discountPercentage,
-          bannerImage: o.bannerImage ?? o.banner ?? o.image ?? o.imageUrl ?? '',
-          image: o.image ?? o.bannerImage ?? o.banner ?? '',
+          bannerImage: o.bannerImage ?? o.banner ?? o.image ?? o.imageUrl ?? o.item?.images?.[0] ?? o.item?.image ?? '',
+          image: o.image ?? o.bannerImage ?? o.item?.images?.[0] ?? '',
           startDate: o.startDate,
           endDate: o.endDate,
           isActive: o.isActive,
           establishmentId: o.establishmentId,
         }));
-    } catch {
+    } catch (err: any) {
       return [];
     }
   },
