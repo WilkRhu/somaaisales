@@ -6,7 +6,8 @@ import {
     DeliveryEstablishment,
     DeliveryFeeResponse,
     DeliveryOrder,
-    UserAddress,
+    DeliveryTrackingEvent,
+    UserAddress
 } from '@/types';
 
 const CART_KEY_PREFIX = 'somaai:delivery-cart-';
@@ -142,9 +143,33 @@ export const deliveryApi = {
     return data?.data ?? data;
   },
 
+  async getDriverLocation(orderId: string): Promise<{ latitude: number; longitude: number } | null> {
+    try {
+      const { data } = await client.get(`/public/delivery/orders/${orderId}/driver-location`);
+      const d = data?.data ?? data;
+      if (!d?.latitude) return null;
+      return { latitude: Number(d.latitude), longitude: Number(d.longitude) };
+    } catch {
+      return null;
+    }
+  },
+
   async getMyOrders(): Promise<DeliveryOrder[]> {
     const { data } = await client.get('/public/delivery/my-orders');
     return Array.isArray(data?.data) ? data.data : [];
+  },
+
+  async getOrderTracking(orderId: string): Promise<DeliveryTrackingEvent[]> {
+    const { data } = await client.get(`/public/delivery/orders/${orderId}/tracking`);
+    return Array.isArray(data?.data) ? data.data : [];
+  },
+
+  async cancelOrder(orderId: string, reason?: string): Promise<void> {
+    await client.post(`/public/delivery/orders/${orderId}/cancel`, { reason });
+  },
+
+  async confirmReceipt(orderId: string): Promise<void> {
+    await client.post(`/public/delivery/orders/${orderId}/confirm-receipt`);
   },
 
   // ─── Endereço do usuário ───────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-import { AppConsumerConfig, AuthSession, NearbyEstablishment, RegisterCustomerPayload, RegisterCustomerResponse, TenantConfig } from '@/types';
+import { AppConsumerConfig, AuthSession, NearbyEstablishment, Offer, Product, RegisterCustomerPayload, RegisterCustomerResponse, TenantConfig } from '@/types';
 import { mockTenantConfig } from '@/utils/mockData';
 import axios from 'axios';
 
@@ -42,6 +42,14 @@ export const authApi = {
       headers: { Authorization: `Bearer ${token}` },
     });
     return data?.data ?? data;
+  },
+
+  async savePushToken(token: string, pushToken: string): Promise<void> {
+    await client.post(
+      '/public/customers/me/push-token',
+      { pushToken, platform: require('react-native').Platform.OS },
+      { headers: { Authorization: `Bearer ${token}` } },
+    );
   },
 };
 

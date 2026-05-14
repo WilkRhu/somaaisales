@@ -2,19 +2,20 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View
+    ActivityIndicator,
+    Animated,
+    FlatList,
+    Image,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Path, Svg } from 'react-native-svg';
 
 import { useCart } from '@/contexts/CartContext';
@@ -28,12 +29,13 @@ const ALL_LABEL = 'Todos';
 
 export default function HomeScreen() {
   const { tenant } = useTenant();
-  const { totalItems, addItem, items, removeItem } = useCart();
+  const { totalItems, addItem, items, removeItem, decrementItem } = useCart();
   const appConsumerConfig = useAppStore((s) => s.appConsumerConfig);
   const authSession = useAppStore((s) => s.authSession);
   const setAuthSession = useAppStore((s) => s.setAuthSession);
   const clearCart = useAppStore((s) => s.clearCart);
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -278,31 +280,62 @@ export default function HomeScreen() {
             </View>
           )
         }
-        renderItem={({ item }) => (
-          <Pressable style={styles.card} onPress={() => setSelectedProduct(item)}>
-            {item.hasOffer && (
-              <View style={[styles.offerBadge, { backgroundColor: primary }]}>
-                <Text style={styles.offerBadgeText}>
-                  {item.offerDetails?.discountPercentage ? `-${item.offerDetails.discountPercentage}%` : 'Oferta'}
+        renderItem={({ item }) => {
+          const qty = items.find((i) => i.product.id === item.id)?.quantity ?? 0;
+          // Flag para evitar que o toque nos botões abra o modal do card
+          let blockCardPress = false;
+          return (
+            <Pressable
+              style={styles.card}
+              onPress={() => { if (!blockCardPress) setSelectedProduct(item); }}>
+              {item.hasOffer && (
+                <View style={[styles.offerBadge, { backgroundColor: primary }]}>
+                  <Text style={styles.offerBadgeText}>
+                    {item.offerDetails?.discountPercentage ? `-${item.offerDetails.discountPercentage}%` : 'Oferta'}
+                  </Text>
+                </View>
+              )}
+              <Image source={{ uri: item.image }} style={styles.productImage} />
+              <View style={styles.cardInfo}>
+                <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
+                {item.hasOffer && item.offerDetails && (
+                  <Text style={styles.originalPrice}>R$ {item.offerDetails.originalPrice.toFixed(2)}</Text>
+                )}
+                <Text style={[styles.productPrice, { color: primary }]}>
+                  R$ {(Number(item.price) || 0).toFixed(2)}
+                  {item.unit ? <Text style={styles.unit}> /{item.unit}</Text> : null}
                 </Text>
               </View>
-            )}
-            <Image source={{ uri: item.image }} style={styles.productImage} />
-            <View style={styles.cardInfo}>
-              <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
-              {item.hasOffer && item.offerDetails && (
-                <Text style={styles.originalPrice}>R$ {item.offerDetails.originalPrice.toFixed(2)}</Text>
+              {qty > 0 ? (
+                <View style={styles.qtyControl}>
+                  <Pressable
+                    style={[styles.qtyBtn, { borderColor: `${primary}40` }]}
+                    onPressIn={() => { blockCardPress = true; }}
+                    onPress={() => { decrementItem(item.id); }}
+                    onPressOut={() => { setTimeout(() => { blockCardPress = false; }, 50); }}>
+                    <Ionicons name={qty === 1 ? 'trash-outline' : 'remove'} size={14} color={primary} />
+                  </Pressable>
+                  <Text style={styles.qtyText}>{qty}</Text>
+                  <Pressable
+                    style={[styles.qtyBtn, { backgroundColor: primary, borderColor: primary }]}
+                    onPressIn={() => { blockCardPress = true; }}
+                    onPress={() => { handleAddItem(item); }}
+                    onPressOut={() => { setTimeout(() => { blockCardPress = false; }, 50); }}>
+                    <Ionicons name="add" size={14} color="#fff" />
+                  </Pressable>
+                </View>
+              ) : (
+                <Pressable
+                  style={[styles.addButton, { backgroundColor: primary }]}
+                  onPressIn={() => { blockCardPress = true; }}
+                  onPress={() => { handleAddItem(item); }}
+                  onPressOut={() => { setTimeout(() => { blockCardPress = false; }, 50); }}>
+                  <Ionicons name="add" size={18} color="#fff" />
+                </Pressable>
               )}
-              <Text style={[styles.productPrice, { color: primary }]}>
-                R$ {(Number(item.price) || 0).toFixed(2)}
-                {item.unit ? <Text style={styles.unit}> /{item.unit}</Text> : null}
-              </Text>
-            </View>
-            <Pressable style={[styles.addButton, { backgroundColor: primary }]} onPress={() => handleAddItem(item)}>
-              <Ionicons name="add" size={18} color="#fff" />
             </Pressable>
-          </Pressable>
-        )}
+          );
+        }}
       />
 
       {/* Toast */}
@@ -315,7 +348,7 @@ export default function HomeScreen() {
 
       {/* Barra flutuante */}
       {totalItems > 0 && (
-        <View style={styles.cartBar}>
+        <View style={[styles.cartBar, { paddingBottom: Math.max(insets.bottom + 24, 40) }]}>
           <Pressable style={[styles.cartBarBtn, { backgroundColor: primary }]} onPress={() => setCartPreviewVisible(true)}>
             <View style={styles.cartBarBadge}>
               <Text style={styles.cartBarBadgeText}>{totalItems}</Text>
@@ -658,9 +691,12 @@ const styles = StyleSheet.create({
   productPrice: { fontSize: 15, fontWeight: '900' },
   unit: { fontSize: 11, fontWeight: '500', color: '#9CA3AF' },
   addButton: { margin: 10, marginTop: 0, borderRadius: 10, alignItems: 'center', justifyContent: 'center', paddingVertical: 8 },
+  qtyControl: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', margin: 10, marginTop: 0, gap: 6 },
+  qtyBtn: { width: 30, height: 30, borderRadius: 9, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
+  qtyText: { fontSize: 14, fontWeight: '800', color: '#111827', minWidth: 20, textAlign: 'center' },
 
   // Toast
-  toast: { position: 'absolute', bottom: 100, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
+  toast: { position: 'absolute', bottom: 150, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 18, paddingVertical: 12, borderRadius: 999, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 6 },
   toastText: { color: '#fff', fontWeight: '700', fontSize: 14, maxWidth: 220 },
 
   // Barra flutuante

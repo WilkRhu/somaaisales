@@ -1,11 +1,12 @@
-import { createContext, PropsWithChildren, useContext, useMemo } from 'react';
-import { CartItem, Product } from '@/types';
 import { getCartTotals, useAppStore } from '@/store';
+import { CartItem, Product } from '@/types';
+import { createContext, PropsWithChildren, useContext, useMemo } from 'react';
 
 type CartContextValue = {
   items: CartItem[];
   addItem: (product: Product) => void;
   removeItem: (id: string) => void;
+  decrementItem: (id: string) => void;
   totalItems: number;
   totalPrice: number;
 };
@@ -16,6 +17,7 @@ export function CartProvider({ children }: PropsWithChildren) {
   const items = useAppStore((state) => state.cartItems);
   const addItem = useAppStore((state) => state.addToCart);
   const removeItem = useAppStore((state) => state.removeFromCart);
+  const decrementItem = useAppStore((state) => state.decrementFromCart);
   const totals = useMemo(() => getCartTotals(items), [items]);
 
   const value = useMemo(
@@ -23,10 +25,11 @@ export function CartProvider({ children }: PropsWithChildren) {
       items,
       addItem,
       removeItem,
+      decrementItem,
       totalItems: totals.totalItems,
       totalPrice: totals.totalPrice,
     }),
-    [items, addItem, removeItem, totals.totalItems, totals.totalPrice],
+    [items, addItem, removeItem, decrementItem, totals.totalItems, totals.totalPrice],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

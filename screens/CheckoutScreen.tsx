@@ -3,18 +3,18 @@ import * as ExpoLocation from 'expo-location';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
@@ -24,8 +24,29 @@ import { useTheme } from '@/contexts/ThemeContext';
 import { deliveryApi, setDeliveryAuthToken } from '@/services/deliveryApi';
 import { useAppStore } from '@/store';
 import { DeliveryFeeResponse, UserAddress } from '@/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type PaymentMethod = 'CREDIT_CARD' | 'DEBIT_CARD' | 'PIX' | 'CASH';
+
+const parseCurrency = (value: string) => {
+  const normalized = value
+    .replace(/R\$\s?/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  const amount = Number(digits) / 100;
+  return `R$ ${amount.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   CREDIT_CARD: 'Cartão de crédito',
@@ -44,6 +65,7 @@ const PAYMENT_ICONS: Record<PaymentMethod, keyof typeof import('@expo/vector-ico
 export default function CheckoutScreen() {
   const theme = useTheme();
   const primary = theme.colors.primary;
+  const insets = useSafeAreaInsets();
   const { items, totalPrice, totalItems } = useCart();
   const authSession = useAppStore((s) => s.authSession);
   const appConsumerConfig = useAppStore((s) => s.appConsumerConfig);
@@ -61,6 +83,7 @@ export default function CheckoutScreen() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
+  const [invalidChangeModal, setInvalidChangeModal] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   // Modal novo endereço
@@ -134,6 +157,13 @@ export default function CheckoutScreen() {
       Alert.alert('Carrinho vazio', 'Adicione produtos antes de finalizar.');
       return;
     }
+    if (paymentMethod === 'CASH') {
+      const changeForValue = parseCurrency(changeFor);
+      if (!changeForValue || changeForValue < total) {
+        setInvalidChangeModal(true);
+        return;
+      }
+    }
     setSubmitting(true);
     try {
       const payload = {
@@ -159,7 +189,7 @@ export default function CheckoutScreen() {
         })),
         paymentMethod,
         deliveryPaymentType: paymentMethod.toLowerCase(),
-        changeFor: paymentMethod === 'CASH' ? changeFor : '',
+        changeFor: paymentMethod === 'CASH' ? String(parseCurrency(changeFor).toFixed(2)) : '',
         notes,
         discount: 0,
         addressId: address.id,
@@ -422,7 +452,16 @@ export default function CheckoutScreen() {
           {paymentMethod === 'CASH' && (
             <View style={styles.changeWrap}>
               <Text style={styles.changeLabel}>Troco para quanto?</Text>
-              <TextInput style={styles.changeInput} value={changeFor} onChangeText={setChangeFor} placeholder="Ex: 50,00" keyboardType="numeric" placeholderTextColor="#9CA3AF" />
+              <TextInput
+                style={styles.changeInput}
+                value={changeFor}
+                onChangeText={(text) => setChangeFor(formatCurrencyInput(text))}
+                placeholder="R$ 0,00"
+                keyboardType="numeric"
+                placeholderTextColor="#9CA3AF"
+                returnKeyType="done"
+              />
+              <Text style={styles.changeHint}>Informe um valor maior ou igual ao total do pedido.</Text>
             </View>
           )}
         </View>
@@ -457,7 +496,7 @@ export default function CheckoutScreen() {
       </ScrollView>
 
       {/* Botão confirmar — bloqueado sem endereço */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 16, 32) }]}>
         {!address && !loadingAddress ? (
           <Pressable style={[styles.confirmBtn, styles.confirmBtnDisabled]} onPress={() => setAddressModal(true)}>
             <Ionicons name="location-outline" size={18} color="#6B7280" />
@@ -477,6 +516,16 @@ export default function CheckoutScreen() {
           </Pressable>
         )}
       </View>
+
+      <AppModal
+        visible={invalidChangeModal}
+        title="Troco inválido"
+        message={`O valor do troco deve ser igual ou maior que o total do pedido de R$ ${total.toFixed(2)}.`}
+        icon="alert-circle-outline"
+        iconColor="#F59E0B"
+        buttons={[{ text: 'Entendi', onPress: () => setInvalidChangeModal(false) }]}
+        onClose={() => setInvalidChangeModal(false)}
+      />
 
       <AppModal
         visible={successModal}
@@ -668,6 +717,7 @@ const styles = StyleSheet.create({
   changeWrap: { gap: 6 },
   changeLabel: { fontSize: 13, fontWeight: '700', color: '#374151' },
   changeInput: { backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontWeight: '600', color: '#111827' },
+  changeHint: { fontSize: 11, color: '#6B7280', fontWeight: '500' },
   notesInput: { backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB', paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, color: '#111827', minHeight: 80, textAlignVertical: 'top' },
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   summaryLabel: { fontSize: 14, color: '#6B7280', fontWeight: '500' },

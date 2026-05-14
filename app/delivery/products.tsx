@@ -2,24 +2,25 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Animated,
-    FlatList,
-    Image,
-    Modal,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    View
+  ActivityIndicator,
+  Animated,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  View
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
 import { useTheme } from '@/contexts/ThemeContext';
 import { deliveryApi } from '@/services/deliveryApi';
 import { DeliveryCartItem, DeliveryEstablishment, Product } from '@/types';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const ALL_LABEL = 'Todos';
 
@@ -32,6 +33,7 @@ export default function DeliveryProductsScreen() {
 
   const theme = useTheme();
   const primary = theme.colors.primary;
+  const insets = useSafeAreaInsets();
 
   const [establishment, setEstablishment] = useState<DeliveryEstablishment | null>(null);
   const [cart, setCart] = useState<DeliveryCartItem[]>([]);
@@ -312,7 +314,7 @@ export default function DeliveryProductsScreen() {
 
       {/* Barra flutuante do carrinho */}
       {totalItems > 0 && !loading && (
-        <View style={styles.cartBar}>
+        <View style={[styles.cartBar, { paddingBottom: Math.max(insets.bottom + 24, 40) }]}>
           <Pressable style={[styles.cartBarBtn, { backgroundColor: primary }]} onPress={() => setCartPreviewVisible(true)}>
             <View style={styles.cartBarBadge}>
               <Text style={styles.cartBarBadgeText}>{totalItems}</Text>

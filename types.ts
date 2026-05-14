@@ -168,6 +168,13 @@ export type DeliveryOrder = {
   notes?: string;
 };
 
+export type DeliveryTrackingEvent = {
+  status: string;
+  description?: string;
+  createdAt: string;
+  timestamp?: string;
+};
+
 export type DeliveryOrderItem = {
   itemId: string;
   productName: string;

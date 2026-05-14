@@ -1,11 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { HeaderWave } from '@/components/HeaderWave';
 import { useCart } from '@/contexts/CartContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
-import { HeaderWave } from '@/components/HeaderWave';
 import { useAppStore } from '@/store';
 
 export default function CartScreen() {
@@ -13,6 +14,7 @@ export default function CartScreen() {
   const { tenant } = useTenant();
   const appConsumerConfig = useAppStore((state) => state.appConsumerConfig);
   const theme = useTheme();
+  const insets = useSafeAreaInsets();
 
   const primaryColor = theme.colors.primary;
   const storeName = appConsumerConfig?.establishmentName ?? tenant?.nome ?? 'SomaAI Sales';
@@ -124,7 +126,7 @@ export default function CartScreen() {
           </ScrollView>
 
           {/* Botão finalizar */}
-          <View style={styles.footer}>
+          <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 16, 32) }]}>
             <Pressable
               style={[styles.checkoutButton, { backgroundColor: primaryColor }]}
               onPress={() => router.push('/app/checkout')}>

@@ -16,6 +16,7 @@ type AppState = {
   setLoadingTenant: (loading: boolean) => void;
   addToCart: (product: Product) => void;
   removeFromCart: (productId: string) => void;
+  decrementFromCart: (productId: string) => void;
   clearCart: () => void;
 };
 
@@ -50,6 +51,19 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           cartItems: state.cartItems.filter((item) => item.product.id !== productId),
         })),
+      decrementFromCart: (productId) =>
+        set((state) => {
+          const existing = state.cartItems.find((item) => item.product.id === productId);
+          if (!existing) return state;
+          if (existing.quantity <= 1) {
+            return { cartItems: state.cartItems.filter((item) => item.product.id !== productId) };
+          }
+          return {
+            cartItems: state.cartItems.map((item) =>
+              item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item,
+            ),
+          };
+        }),
       clearCart: () => set({ cartItems: [] }),
     }),
     {

@@ -14,6 +14,7 @@ import {
     TextInput,
     View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { AppModal } from '@/components/AppModal';
 import { HeaderWave } from '@/components/HeaderWave';
@@ -23,6 +24,26 @@ import { useAppStore } from '@/store';
 import { DeliveryCartItem, DeliveryFeeResponse, UserAddress } from '@/types';
 
 type PaymentMethod = 'CREDIT_CARD' | 'DEBIT_CARD' | 'PIX' | 'CASH';
+
+const parseCurrency = (value: string) => {
+  const normalized = value
+    .replace(/R\$\s?/g, '')
+    .replace(/\./g, '')
+    .replace(',', '.')
+    .trim();
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : 0;
+};
+
+const formatCurrencyInput = (value: string) => {
+  const digits = value.replace(/\D/g, '');
+  if (!digits) return '';
+  const amount = Number(digits) / 100;
+  return `R$ ${amount.toLocaleString('pt-BR', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+};
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
   CREDIT_CARD: 'Cartão de crédito',
@@ -46,7 +67,7 @@ export default function DeliveryCheckoutScreen() {
 
   const theme = useTheme();
   const primary = theme.colors.primary;
-  const authSession = useAppStore((s) => s.authSession);
+  const insets = useSafeAreaInsets();  const authSession = useAppStore((s) => s.authSession);
 
   const [cart] = useState<DeliveryCartItem[]>(() => {
     try { return JSON.parse(cartParam ?? '[]'); } catch { return []; }
@@ -61,6 +82,7 @@ export default function DeliveryCheckoutScreen() {
   const [notes, setNotes] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [successModal, setSuccessModal] = useState(false);
+  const [invalidChangeModal, setInvalidChangeModal] = useState(false);
   const [createdOrderId, setCreatedOrderId] = useState<string | null>(null);
 
   const subtotal = cart.reduce((s, i) => s + i.product.price * i.quantity, 0);
@@ -129,6 +151,13 @@ export default function DeliveryCheckoutScreen() {
       Alert.alert('Carrinho vazio', 'Adicione produtos antes de finalizar.');
       return;
     }
+    if (paymentMethod === 'CASH') {
+      const changeForValue = parseCurrency(changeFor);
+      if (!changeForValue || changeForValue < total) {
+        setInvalidChangeModal(true);
+        return;
+      }
+    }
 
     setSubmitting(true);
     try {
@@ -155,7 +184,7 @@ export default function DeliveryCheckoutScreen() {
         })),
         paymentMethod,
         deliveryPaymentType: paymentMethod.toLowerCase(),
-        changeFor: paymentMethod === 'CASH' ? changeFor : '',
+        changeFor: paymentMethod === 'CASH' ? String(parseCurrency(changeFor).toFixed(2)) : '',
         notes,
         discount: 0,
         addressId: address.id,
@@ -334,11 +363,13 @@ export default function DeliveryCheckoutScreen() {
               <TextInput
                 style={styles.changeInput}
                 value={changeFor}
-                onChangeText={setChangeFor}
-                placeholder="Ex: 50,00"
+                onChangeText={(text) => setChangeFor(formatCurrencyInput(text))}
+                placeholder="R$ 0,00"
                 keyboardType="numeric"
                 placeholderTextColor="#9CA3AF"
+                returnKeyType="done"
               />
+              <Text style={styles.changeHint}>Informe um valor maior ou igual ao total do pedido.</Text>
             </View>
           )}
         </View>
@@ -383,7 +414,7 @@ export default function DeliveryCheckoutScreen() {
       </ScrollView>
 
       {/* Botão confirmar */}
-      <View style={styles.footer}>
+      <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom + 16, 32) }]}>
         <Pressable
           style={[styles.confirmBtn, { backgroundColor: primary }, submitting && { opacity: 0.7 }]}
           onPress={handleSubmit}
@@ -398,6 +429,16 @@ export default function DeliveryCheckoutScreen() {
           )}
         </Pressable>
       </View>
+
+      <AppModal
+        visible={invalidChangeModal}
+        title="Troco inválido"
+        message={`O valor do troco deve ser igual ou maior que o total do pedido de R$ ${total.toFixed(2)}.`}
+        icon="alert-circle-outline"
+        iconColor="#F59E0B"
+        buttons={[{ text: 'Entendi', onPress: () => setInvalidChangeModal(false) }]}
+        onClose={() => setInvalidChangeModal(false)}
+      />
 
       {/* Modal de sucesso */}
       <AppModal
@@ -474,6 +515,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB',
     paddingHorizontal: 14, paddingVertical: 10, fontSize: 14, fontWeight: '600', color: '#111827',
   },
+  changeHint: { fontSize: 11, color: '#6B7280', fontWeight: '500' },
 
   notesInput: {
     backgroundColor: '#F9FAFB', borderRadius: 12, borderWidth: 1, borderColor: '#E5E7EB',

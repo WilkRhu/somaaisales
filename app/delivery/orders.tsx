@@ -9,17 +9,17 @@ import {
   StatusBar,
   StyleSheet,
   Text,
-  View,
+  View
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
 import { HeaderWave } from '@/components/HeaderWave';
 import { useTheme } from '@/contexts/ThemeContext';
-import { deliveryApi } from '@/services/deliveryApi';
+import { deliveryApi, setDeliveryAuthToken } from '@/services/deliveryApi';
 import { useAppStore } from '@/store';
 import { DeliveryOrder } from '@/types';
 
-const STATUS_FILTERS = ['ALL', 'PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'] as const;
+const STATUS_FILTERS = ['ALL', 'PENDING', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'OUT_FOR_DELIVERY', 'AWAITING_CONFIRMATION', 'DELIVERED', 'CANCELLED'] as const;
 
 export default function DeliveryOrdersScreen() {
   const theme = useTheme();
@@ -29,6 +29,8 @@ export default function DeliveryOrdersScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorModal, setErrorModal] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
   const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]>('ALL');
 
   const load = async (isRefresh = false) => {
@@ -44,11 +46,37 @@ export default function DeliveryOrdersScreen() {
     }
   };
 
-  useEffect(() => { void load(); }, []);
+  const handleCancel = async () => {
+    if (!cancelOrderId) return;
+    setCancelLoading(true);
+    try {
+      await deliveryApi.cancelOrder(cancelOrderId);
+      setCancelOrderId(null);
+      await load(true);
+    } catch {
+      setCancelOrderId(null);
+      setErrorModal(true);
+    } finally {
+      setCancelLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (authSession?.accessToken) {
+      setDeliveryAuthToken(authSession.accessToken);
+    }
+  }, [authSession]);
+
+  useEffect(() => {
+    if (authSession?.accessToken) {
+      setDeliveryAuthToken(authSession.accessToken);
+    }
+    void load();
+  }, []);
 
   const filteredOrders = useMemo(() => {
     if (filter === 'ALL') return orders;
-    return orders.filter((o) => o.status === filter);
+    return orders.filter((o) => o.status?.toUpperCase() === filter);
   }, [orders, filter]);
 
   return (
@@ -111,12 +139,33 @@ export default function DeliveryOrdersScreen() {
               <Text style={styles.address} numberOfLines={2}>{item.deliveryAddress}</Text>
               <View style={styles.cardBottom}>
                 <Text style={styles.payment}>{paymentLabel(item.paymentMethod)}</Text>
-                <Text style={[styles.total, { color: primary }]}>R$ {item.total.toFixed(2)}</Text>
+                <Text style={[styles.total, { color: primary }]}>R$ {Number(item.total ?? 0).toFixed(2)}</Text>
               </View>
+              {(item.status?.toUpperCase() === 'PENDING' || item.status?.toUpperCase() === 'CONFIRMED') && (
+                <Pressable
+                  style={styles.cancelBtn}
+                  onPress={(e) => { e.stopPropagation(); setCancelOrderId(item.id); }}>
+                  <Ionicons name="close-circle-outline" size={15} color="#EF4444" />
+                  <Text style={styles.cancelBtnText}>Cancelar pedido</Text>
+                </Pressable>
+              )}
             </Pressable>
           )}
         />
       )}
+
+      <AppModal
+        visible={!!cancelOrderId}
+        title="Cancelar pedido"
+        message="Tem certeza que deseja cancelar este pedido?"
+        icon="alert-circle-outline"
+        iconColor="#EF4444"
+        buttons={[
+          { text: cancelLoading ? 'Cancelando...' : 'Sim, cancelar', onPress: handleCancel },
+          { text: 'Voltar', style: 'cancel', onPress: () => setCancelOrderId(null) },
+        ]}
+        onClose={() => setCancelOrderId(null)}
+      />
 
       <AppModal
         visible={errorModal}
@@ -141,10 +190,11 @@ function statusLabel(status: string) {
     PREPARING: 'Preparando',
     READY_FOR_DELIVERY: 'Pronto',
     OUT_FOR_DELIVERY: 'Saiu',
+    AWAITING_CONFIRMATION: 'Aguardando confirmação',
     DELIVERED: 'Entregue',
     CANCELLED: 'Cancelado',
   };
-  return map[status] ?? status;
+  return map[status?.toUpperCase()] ?? status;
 }
 
 function statusColor(status: string) {
@@ -154,10 +204,11 @@ function statusColor(status: string) {
     PREPARING: '#7C3AED',
     READY_FOR_DELIVERY: '#059669',
     OUT_FOR_DELIVERY: '#0EA5E9',
+    AWAITING_CONFIRMATION: '#F97316',
     DELIVERED: '#10B981',
     CANCELLED: '#EF4444',
   };
-  return map[status] ?? '#6B7280';
+  return map[status?.toUpperCase()] ?? '#6B7280';
 }
 
 function paymentLabel(method: string) {
@@ -194,4 +245,10 @@ const styles = StyleSheet.create({
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4 },
   payment: { fontSize: 12, fontWeight: '600', color: '#6B7280' },
   total: { fontSize: 16, fontWeight: '900' },
+  cancelBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2',
+    borderRadius: 10, paddingVertical: 8, paddingHorizontal: 12, alignSelf: 'flex-start',
+  },
+  cancelBtnText: { fontSize: 12, fontWeight: '700', color: '#EF4444' },
 });
