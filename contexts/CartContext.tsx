@@ -1,12 +1,12 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
-import { storage } from '@/storage';
+import { getCartTotals, useAppStore } from '@/store';
 import { CartItem, Product } from '@/types';
+import { createContext, PropsWithChildren, useContext, useMemo } from 'react';
 
 type CartContextValue = {
   items: CartItem[];
   addItem: (product: Product) => void;
   removeItem: (id: string) => void;
+  decrementItem: (id: string) => void;
   totalItems: number;
   totalPrice: number;
 };
@@ -14,28 +14,22 @@ type CartContextValue = {
 const CartContext = createContext<CartContextValue | null>(null);
 
 export function CartProvider({ children }: PropsWithChildren) {
-  const [items, setItems] = useState<CartItem[]>([]);
-
-  useEffect(() => {
-    AsyncStorage.getItem(storage.cartKey).then((raw: string | null) => raw && setItems(JSON.parse(raw)));
-  }, []);
-
-  useEffect(() => {
-    AsyncStorage.setItem(storage.cartKey, JSON.stringify(items));
-  }, [items]);
-
-  const addItem = (product: Product) => setItems((current) => [...current, { product, quantity: 1 }]);
-  const removeItem = (id: string) => setItems((current) => current.filter((item) => item.product.id !== id));
+  const items = useAppStore((state) => state.cartItems);
+  const addItem = useAppStore((state) => state.addToCart);
+  const removeItem = useAppStore((state) => state.removeFromCart);
+  const decrementItem = useAppStore((state) => state.decrementFromCart);
+  const totals = useMemo(() => getCartTotals(items), [items]);
 
   const value = useMemo(
     () => ({
       items,
       addItem,
       removeItem,
-      totalItems: items.reduce((sum, item) => sum + item.quantity, 0),
-      totalPrice: items.reduce((sum, item) => sum + item.quantity * item.product.price, 0),
+      decrementItem,
+      totalItems: totals.totalItems,
+      totalPrice: totals.totalPrice,
     }),
-    [items],
+    [items, addItem, removeItem, decrementItem, totals.totalItems, totals.totalPrice],
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

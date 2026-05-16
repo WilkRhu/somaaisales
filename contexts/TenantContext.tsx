@@ -1,8 +1,7 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { createContext, PropsWithChildren, useContext, useEffect, useMemo, useState } from 'react';
+import { createContext, PropsWithChildren, useContext, useEffect, useMemo } from 'react';
 import { tenantApi } from '@/services/api';
-import { storage } from '@/storage';
 import { Tenant, TenantConfig } from '@/types';
+import { useAppStore } from '@/store';
 
 type TenantContextValue = {
   tenant: Tenant | null;
@@ -16,18 +15,10 @@ type TenantContextValue = {
 const TenantContext = createContext<TenantContextValue | null>(null);
 
 export function TenantProvider({ children }: PropsWithChildren) {
-  const [tenant, setTenant] = useState<Tenant | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const persist = async (nextTenant: Tenant | null) => {
-    if (!nextTenant) return AsyncStorage.removeItem(storage.tenantKey);
-    await AsyncStorage.setItem(storage.tenantKey, JSON.stringify(nextTenant));
-  };
-
-  const hydrate = async () => {
-    const raw = await AsyncStorage.getItem(storage.tenantKey);
-    return raw ? (JSON.parse(raw) as Tenant) : null;
-  };
+  const tenant = useAppStore((state) => state.tenant);
+  const loading = useAppStore((state) => state.loadingTenant);
+  const setTenant = useAppStore((state) => state.setTenant);
+  const setLoadingTenant = useAppStore((state) => state.setLoadingTenant);
 
   const resolveTenant = async (config: TenantConfig) => {
     const nextTenant: Tenant = {
@@ -35,29 +26,25 @@ export function TenantProvider({ children }: PropsWithChildren) {
       configFetchedAt: new Date().toISOString(),
     };
     setTenant(nextTenant);
-    await persist(nextTenant);
     return true;
   };
 
   const loadTenantByCode = async (code: string) => {
-    setLoading(true);
+    setLoadingTenant(true);
     try {
       const config = await tenantApi.getTenantByCode(code);
       return await resolveTenant(config);
     } finally {
-      setLoading(false);
+      setLoadingTenant(false);
     }
   };
 
   const bootstrapTenant = async () => {
-    setLoading(true);
+    setLoadingTenant(false);
     try {
-      const cached = await hydrate();
-      if (!cached) return false;
-      setTenant(cached);
-      return true;
+      return Boolean(tenant);
     } finally {
-      setLoading(false);
+      setLoadingTenant(false);
     }
   };
 
@@ -69,7 +56,7 @@ export function TenantProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void bootstrapTenant();
-  }, []);
+  }, [tenant]);
 
   const value = useMemo(
     () => ({ tenant, modules: tenant?.modulos ?? [], loading, loadTenantByCode, bootstrapTenant, refreshTenant }),

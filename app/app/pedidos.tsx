@@ -1,1 +1,1 @@
-export { default } from '@/screens/OrdersScreen';
+export { default } from '../delivery/orders';
