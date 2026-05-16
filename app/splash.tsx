@@ -5,7 +5,7 @@ import { ResizeMode, Video } from 'expo-av';
 
 import { useAppStore } from '@/store';
 
-const appLogoUrl = 'https://somaaiuploads.s3.us-east-1.amazonaws.com/logomarca/somaaisales.png';
+const appLogoAsset = require('../assets/images/somaaisales-logo.png');
 
 export default function SplashScreen() {
   const tenant = useAppStore((state) => state.tenant);
@@ -60,10 +60,10 @@ export default function SplashScreen() {
           }}
         />
       ) : (
-        <Image source={{ uri: appConsumerConfig?.logo ?? appLogoUrl }} style={styles.logo} />
+        <Image source={appConsumerConfig?.logo ? { uri: appConsumerConfig.logo } : appLogoAsset} style={styles.logo} />
       )}
       {!hasVideo && appConsumerConfig?.logo ? (
-        <Image source={{ uri: appLogoUrl }} style={styles.secondaryLogo} />
+        <Image source={appLogoAsset} style={styles.secondaryLogo} />
       ) : null}
       {!hasVideo ? (
         <ActivityIndicator size="large" color={appConsumerConfig?.appColor ?? '#1677FF'} />

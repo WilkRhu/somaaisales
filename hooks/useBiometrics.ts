@@ -6,7 +6,6 @@ const STORAGE_KEY = '@somaai:biometric-credentials';
 
 export type SavedCredentials = {
   email: string;
-  password: string;
   establishmentId: string;
   establishmentName: string;
   logo: string | null;

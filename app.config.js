@@ -1,7 +1,7 @@
 import 'dotenv/config';
 
 const googleMapsApiKey = process.env.GOOGLE_MAPS_API_KEY;
-const appName = process.env.APP_NAME || 'somaaisales';
+const appName = process.env.APP_NAME || 'SomaAi Sales';
 const appSlug = process.env.APP_SLUG || 'somaaisales';
 const androidPackage = process.env.ANDROID_PACKAGE || 'com.wilkrhu.somaaisales';
 
@@ -12,7 +12,7 @@ export default {
     slug: appSlug,
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/images/icon.png',
+    icon: './assets/images/somaaisales-logo.png',
     scheme: appSlug,
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
@@ -28,6 +28,7 @@ export default {
     },
     android: {
       package: androidPackage,
+      softwareKeyboardLayoutMode: 'resize',
       adaptiveIcon: {
         backgroundColor: '#E6F4FE',
         foregroundImage: './assets/images/android-icon-foreground.png',
@@ -52,7 +53,7 @@ export default {
       [
         'expo-notifications',
         {
-          icon: './assets/images/icon.png',
+          icon: './assets/images/somaaisales-logo.png',
           color: '#ffffff',
           sounds: [],
         },
@@ -60,8 +61,8 @@ export default {
       [
         'expo-splash-screen',
         {
-          image: './assets/images/splash-icon.png',
-          imageWidth: 200,
+          image: './assets/images/somaaisales-logo.png',
+          imageWidth: 240,
           resizeMode: 'contain',
           backgroundColor: '#ffffff',
           dark: {

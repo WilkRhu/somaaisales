@@ -680,7 +680,7 @@ export default function CheckoutScreen() {
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F5F5' },
-  header: { paddingTop: 52, paddingBottom: 20, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  header: { paddingTop: 64, paddingBottom: 26, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
   backBtn: { padding: 4 },
   headerText: { flex: 1, gap: 2 },
   headerTitle: { fontSize: 18, fontWeight: '900', color: '#fff' },

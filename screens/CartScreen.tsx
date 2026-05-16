@@ -147,7 +147,7 @@ const styles = StyleSheet.create({
 
   // Header
   header: {
-    paddingTop: 52, paddingBottom: 20, paddingHorizontal: 16,
+    paddingTop: 64, paddingBottom: 26, paddingHorizontal: 16,
     flexDirection: 'row', alignItems: 'center', gap: 12,
   },
   backButton: { padding: 4 },

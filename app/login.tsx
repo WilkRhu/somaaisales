@@ -4,7 +4,10 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
     Image,
+    KeyboardAvoidingView,
     Pressable,
+    Platform,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -61,7 +64,19 @@ export default function LoginScreen() {
   const tryBiometricLogin = async () => {
     const ok = await authenticate();
     if (!ok) return;
-    await doLogin(savedCredentials!.email, savedCredentials!.password, false);
+
+    const session = useAppStore.getState().authSession;
+    if (!session) {
+      showModal({
+        title: 'Sessão expirada',
+        message: 'Sua sessão não está mais ativa. Entre novamente com e-mail e senha.',
+        icon: 'alert-circle-outline',
+        iconColor: '#EF4444',
+      });
+      return;
+    }
+
+    router.replace('/app/home');
   };
 
   const doLogin = async (loginEmail: string, loginPassword: string, shouldSave: boolean) => {
@@ -98,7 +113,6 @@ export default function LoginScreen() {
               onPress: async () => {
                 await saveCredentials({
                   email: loginEmail,
-                  password: loginPassword,
                   establishmentId: tenant.id,
                   establishmentName: appConsumerConfig?.establishmentName ?? tenant.nome,
                   logo: appConsumerConfig?.logo ?? tenant.logo ?? null,
@@ -148,118 +162,125 @@ export default function LoginScreen() {
     type === 'face' ? 'scan-outline' : 'finger-print-outline';
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor={primaryColor} />
 
-      <View style={styles.topSection}>
-        {screenVideo ? (
-          <Video
-            source={{ uri: screenVideo }}
-            style={styles.topVideo}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay
-            isLooping
-            isMuted
-          />
-        ) : null}
-        <View style={[styles.topOverlay, { backgroundColor: screenVideo ? 'rgba(7,27,90,0.62)' : primaryColor }]}>
-          {logo ? (
-            <Image source={{ uri: logo }} style={styles.storeLogo} />
-          ) : (
-            <View style={[styles.logoFallback, { backgroundColor: `${primaryColor}40` }]}>
-              <Ionicons name="storefront-outline" size={36} color="#fff" />
-            </View>
-          )}
-          <Text style={styles.storeName}>{storeName}</Text>
-          <Text style={styles.storeTagline}>Área operacional da loja</Text>
-        </View>
-      </View>
-
-      <View style={styles.card}>
-        {isSupported && savedCredentials && (
-          <Pressable
-            style={[styles.biometricBanner, { borderColor: `${primaryColor}30`, backgroundColor: `${primaryColor}08` }]}
-            onPress={tryBiometricLogin}>
-            <View style={[styles.biometricIconWrap, { backgroundColor: `${primaryColor}15` }]}>
-              <Ionicons name={biometricIcon(biometricType)} size={28} color={primaryColor} />
-            </View>
-            <View style={styles.biometricText}>
-              <Text style={[styles.biometricTitle, { color: primaryColor }]}>
-                Entrar com {biometricLabel(biometricType)}
-              </Text>
-              <Text style={styles.biometricSub} numberOfLines={1}>
-                {savedCredentials.establishmentName} · {savedCredentials.email}
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={primaryColor} />
-          </Pressable>
-        )}
-
-        <Text style={styles.cardTitle}>Entrar na conta</Text>
-        <Text style={styles.cardSubtitle}>Use suas credenciais de acesso</Text>
-
-        <View style={styles.field}>
-          <Text style={styles.label}>E-mail</Text>
-          <View style={styles.inputWrap}>
-            <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-            <TextInput
-              value={email}
-              onChangeText={setEmail}
-              placeholder="voce@loja.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              placeholderTextColor="#9CA3AF"
-              style={styles.input}
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        showsVerticalScrollIndicator={false}>
+        <View style={styles.topSection}>
+          {screenVideo ? (
+            <Video
+              source={{ uri: screenVideo }}
+              style={styles.topVideo}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay
+              isLooping
+              isMuted
             />
+          ) : null}
+          <View style={[styles.topOverlay, { backgroundColor: screenVideo ? 'rgba(7,27,90,0.62)' : primaryColor }]}>
+            {logo ? (
+              <Image source={{ uri: logo }} style={styles.storeLogo} />
+            ) : (
+              <View style={[styles.logoFallback, { backgroundColor: `${primaryColor}40` }]}>
+                <Ionicons name="storefront-outline" size={36} color="#fff" />
+              </View>
+            )}
+            <Text style={styles.storeName}>{storeName}</Text>
+            <Text style={styles.storeTagline}>Área operacional da loja</Text>
           </View>
         </View>
 
-        <View style={styles.field}>
-          <Text style={styles.label}>Senha</Text>
-          <View style={styles.inputWrap}>
-            <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
-            <TextInput
-              value={password}
-              onChangeText={setPassword}
-              placeholder="••••••••"
-              secureTextEntry={!showPassword}
-              placeholderTextColor="#9CA3AF"
-              style={[styles.input, { flex: 1 }]}
-            />
-            <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
-              <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9CA3AF" />
+        <View style={styles.card}>
+          {isSupported && savedCredentials && (
+            <Pressable
+              style={[styles.biometricBanner, { borderColor: `${primaryColor}30`, backgroundColor: `${primaryColor}08` }]}
+              onPress={tryBiometricLogin}>
+              <View style={[styles.biometricIconWrap, { backgroundColor: `${primaryColor}15` }]}>
+                <Ionicons name={biometricIcon(biometricType)} size={28} color={primaryColor} />
+              </View>
+              <View style={styles.biometricText}>
+                <Text style={[styles.biometricTitle, { color: primaryColor }]}>
+                  Entrar com {biometricLabel(biometricType)}
+                </Text>
+                <Text style={styles.biometricSub} numberOfLines={1}>
+                  {savedCredentials.establishmentName} · {savedCredentials.email}
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={primaryColor} />
             </Pressable>
+          )}
+
+          <Text style={styles.cardTitle}>Entrar na conta</Text>
+          <Text style={styles.cardSubtitle}>Use suas credenciais de acesso</Text>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>E-mail</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="mail-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+              <TextInput
+                value={email}
+                onChangeText={setEmail}
+                placeholder="voce@loja.com"
+                keyboardType="email-address"
+                autoCapitalize="none"
+                placeholderTextColor="#9CA3AF"
+                style={styles.input}
+              />
+            </View>
           </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Senha</Text>
+            <View style={styles.inputWrap}>
+              <Ionicons name="lock-closed-outline" size={18} color="#9CA3AF" style={styles.inputIcon} />
+              <TextInput
+                value={password}
+                onChangeText={setPassword}
+                placeholder="••••••••"
+                secureTextEntry={!showPassword}
+                placeholderTextColor="#9CA3AF"
+                style={[styles.input, { flex: 1 }]}
+              />
+              <Pressable onPress={() => setShowPassword((v) => !v)} style={styles.eyeButton}>
+                <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={18} color="#9CA3AF" />
+              </Pressable>
+            </View>
+          </View>
+
+          <Pressable style={styles.forgotLink} onPress={() => router.push('/forgot-password')}>
+            <Text style={[styles.forgotLinkText, { color: primaryColor }]}>Esqueci minha senha</Text>
+          </Pressable>
+
+          <Pressable
+            style={[styles.submitButton, { backgroundColor: primaryColor }, loading && styles.submitButtonDisabled]}
+            onPress={submit}
+            disabled={loading}>
+            {loading
+              ? <Ionicons name="sync-outline" size={20} color="#fff" />
+              : <Text style={styles.submitButtonText}>Entrar</Text>}
+          </Pressable>
+
+          <View style={styles.divider}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>ou</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          <Pressable style={[styles.registerButton, { borderColor: primaryColor }]} onPress={() => router.push('/register')}>
+            <Text style={[styles.registerButtonText, { color: primaryColor }]}>Criar nova conta</Text>
+          </Pressable>
+
+          <Pressable style={styles.backLink} onPress={() => router.replace('/store-selection')}>
+            <Ionicons name="arrow-back-outline" size={15} color="#6B7280" />
+            <Text style={styles.backLinkText}>Trocar de loja</Text>
+          </Pressable>
         </View>
-
-        <Pressable style={styles.forgotLink} onPress={() => router.push('/forgot-password')}>
-          <Text style={[styles.forgotLinkText, { color: primaryColor }]}>Esqueci minha senha</Text>
-        </Pressable>
-
-        <Pressable
-          style={[styles.submitButton, { backgroundColor: primaryColor }, loading && styles.submitButtonDisabled]}
-          onPress={submit}
-          disabled={loading}>
-          {loading
-            ? <Ionicons name="sync-outline" size={20} color="#fff" />
-            : <Text style={styles.submitButtonText}>Entrar</Text>}
-        </Pressable>
-
-        <View style={styles.divider}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>ou</Text>
-          <View style={styles.dividerLine} />
-        </View>
-
-        <Pressable style={[styles.registerButton, { borderColor: primaryColor }]} onPress={() => router.push('/register')}>
-          <Text style={[styles.registerButtonText, { color: primaryColor }]}>Criar nova conta</Text>
-        </Pressable>
-
-        <Pressable style={styles.backLink} onPress={() => router.replace('/store-selection')}>
-          <Ionicons name="arrow-back-outline" size={15} color="#6B7280" />
-          <Text style={styles.backLinkText}>Trocar de loja</Text>
-        </Pressable>
-      </View>
+      </ScrollView>
 
       <AppModal
         visible={modal.visible}
@@ -270,12 +291,14 @@ export default function LoginScreen() {
         buttons={modal.buttons}
         onClose={closeModal}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F5F5' },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 24 },
   topSection: { minHeight: 260, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' },
   topVideo: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
   topOverlay: { flex: 1, paddingTop: 64, paddingBottom: 40, alignItems: 'center', justifyContent: 'center', gap: 10 },

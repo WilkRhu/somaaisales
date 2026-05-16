@@ -6,7 +6,9 @@ import {
   Alert,
   FlatList,
   Image,
+  KeyboardAvoidingView,
   Pressable,
+  Platform,
   StatusBar,
   StyleSheet,
   Text,
@@ -115,7 +117,7 @@ export default function StoreSelectionScreen() {
   const isLoading = loadingLocation || loadingStores;
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor={C.blueDark} />
 
       {/* Header fixo com gradiente simulado */}
@@ -209,6 +211,7 @@ export default function StoreSelectionScreen() {
           data={filteredStores}
           keyExtractor={(item) => item.id}
           showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <EmptyState
@@ -230,7 +233,7 @@ export default function StoreSelectionScreen() {
           {latitude.toFixed(4)}, {longitude.toFixed(4)}
         </Text>
       )}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -293,9 +296,9 @@ const styles = StyleSheet.create({
   // Header
   header: {
     backgroundColor: C.blueDark,
-    paddingTop: 52,
+    paddingTop: 64,
     paddingHorizontal: 20,
-    paddingBottom: 24,
+    paddingBottom: 32,
     gap: 10,
   },
   headerInner: {

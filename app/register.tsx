@@ -5,7 +5,9 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import {
   Image,
+  KeyboardAvoidingView,
   Pressable,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -169,7 +171,7 @@ export default function RegisterScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor={primaryColor} />
 
       <View style={[styles.topSection, { backgroundColor: primaryColor }]}>
@@ -187,7 +189,12 @@ export default function RegisterScreen() {
         <Text style={styles.storeTagline}>Criar nova conta</Text>
       </View>
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}>
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Cadastro</Text>
           <Text style={styles.cardSubtitle}>Preencha os dados para criar sua conta</Text>
@@ -295,7 +302,7 @@ export default function RegisterScreen() {
         buttons={modal.buttons}
         onClose={closeModal}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

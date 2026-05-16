@@ -644,7 +644,7 @@ const styles = StyleSheet.create({
 
   // Header
   headerWrap: { marginBottom: 8 },
-  topBar: { paddingTop: 52, paddingHorizontal: 16, paddingBottom: 28 },
+  topBar: { paddingTop: 64, paddingHorizontal: 16, paddingBottom: 36 },
   topBarRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   menuBtn: { padding: 2 },
   avatarWrap: { position: 'relative' },

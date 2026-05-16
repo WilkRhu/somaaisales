@@ -3,7 +3,10 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import {
     Image,
+    KeyboardAvoidingView,
     Pressable,
+    Platform,
+    ScrollView,
     StatusBar,
     StyleSheet,
     Text,
@@ -47,7 +50,7 @@ export default function ForgotPasswordScreen() {
   };
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <StatusBar barStyle="light-content" backgroundColor={primaryColor} />
 
       <View style={[styles.topSection, { backgroundColor: primaryColor }]}>
@@ -65,6 +68,12 @@ export default function ForgotPasswordScreen() {
         <Text style={styles.storeTagline}>Recuperar acesso</Text>
       </View>
 
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+        showsVerticalScrollIndicator={false}>
       <View style={styles.card}>
         {sent ? (
           /* Estado de sucesso */
@@ -128,6 +137,7 @@ export default function ForgotPasswordScreen() {
           </>
         )}
       </View>
+      </ScrollView>
 
       <AppModal
         visible={errorModal}
@@ -137,12 +147,14 @@ export default function ForgotPasswordScreen() {
         iconColor={email.trim() ? '#EF4444' : primaryColor}
         onClose={() => setErrorModal(false)}
       />
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F5F5' },
+  scroll: { flex: 1 },
+  scrollContent: { paddingBottom: 24 },
   topSection: {
     paddingTop: 52,
     paddingBottom: 40,
