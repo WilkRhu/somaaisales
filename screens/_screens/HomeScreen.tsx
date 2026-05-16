@@ -7,6 +7,7 @@ import {
   FlatList,
   Image,
   Modal,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
@@ -28,6 +29,7 @@ import { useAppStore, useOffersStore } from '@/store';
 import { Product } from '@/types';
 
 const ALL_LABEL = 'Todos';
+const EMPTY_PRODUCTS: Product[] = [];
 
 export default function HomeScreen() {
   const { tenant } = useTenant();
@@ -36,8 +38,6 @@ export default function HomeScreen() {
   const authSession = useAppStore((s) => s.authSession);
   const setAuthSession = useAppStore((s) => s.setAuthSession);
   const clearCart = useAppStore((s) => s.clearCart);
-  const favoriteProducts = useAppStore((s) => s.favoriteProducts);
-  const recentProducts = useAppStore((s) => s.recentProducts);
   const toggleFavoriteProduct = useAppStore((s) => s.toggleFavoriteProduct);
   const isFavoriteProduct = useAppStore((s) => s.isFavoriteProduct);
   const addRecentProduct = useAppStore((s) => s.addRecentProduct);
@@ -53,6 +53,7 @@ export default function HomeScreen() {
   const [cartPreviewVisible, setCartPreviewVisible] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedOffer, setSelectedOffer] = useState<(typeof offers)[number] | null>(null);
   const [detailImageIndex, setDetailImageIndex] = useState(0);
   const [fullImageVisible, setFullImageVisible] = useState(false);
 
@@ -74,6 +75,8 @@ export default function HomeScreen() {
   const userEmail = authSession?.user?.email ?? '';
   const userAvatar = authSession?.user?.avatar ?? null;
   const establishmentId = appConsumerConfig?.establishmentId ?? tenant?.id;
+  const favoriteProducts = useAppStore((s) => s.favoriteProductsByScope[establishmentId ?? 'default'] ?? EMPTY_PRODUCTS);
+  const recentProducts = useAppStore((s) => s.recentProductsByScope[establishmentId ?? 'default'] ?? EMPTY_PRODUCTS);
 
   const fetchProducts = (isRefresh = false) => {
     if (!establishmentId) return;
@@ -246,7 +249,9 @@ export default function HomeScreen() {
                   }}
                   getItemLayout={(_, index) => ({ length: SLIDE_WIDTH + 12, offset: (SLIDE_WIDTH + 12) * index, index })}
                   renderItem={({ item }) => (
-                    <View style={[styles.carouselSlide, { width: SLIDE_WIDTH }]}>
+                    <Pressable
+                      style={({ pressed }) => [styles.carouselSlide, { width: SLIDE_WIDTH }, pressed && styles.carouselSlidePressed]}
+                      onPress={() => setSelectedOffer(item)}>
                       {item.bannerImage ? (
                         <Image source={{ uri: item.bannerImage }} style={styles.carouselImage} />
                       ) : (
@@ -262,11 +267,13 @@ export default function HomeScreen() {
                           </View>
                         ) : null}
                         <Text style={styles.carouselTitle} numberOfLines={1}>{item.title}</Text>
-                        {item.description ? (
-                          <Text style={styles.carouselDesc} numberOfLines={1}>{item.description}</Text>
-                        ) : null}
+                        <Text style={styles.carouselProductName} numberOfLines={1}>Produto em oferta</Text>
+                        {item.description ? <Text style={styles.carouselDesc} numberOfLines={1}>{item.description}</Text> : null}
+                        <Text style={styles.carouselCta}>
+                          Toque para ver a oferta
+                        </Text>
                       </View>
-                    </View>
+                    </Pressable>
                   )}
                 />
                 {offers.length > 1 && (
@@ -572,6 +579,14 @@ export default function HomeScreen() {
                 <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
               </Pressable>
 
+              <Pressable style={styles.sidebarItem} onPress={() => { closeSidebar(); setTimeout(() => router.push('/app/favoritos'), 250); }}>
+                <View style={[styles.sidebarItemIcon, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="heart-outline" size={20} color="#EF4444" />
+                </View>
+                <Text style={[styles.sidebarItemText, { color: '#111827' }]}>Favoritos</Text>
+                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+              </Pressable>
+
               <Pressable style={styles.sidebarItem} onPress={handleLogout}>
                 <View style={styles.sidebarItemIcon}>
                   <Ionicons name="log-out-outline" size={20} color="#EF4444" />
@@ -756,6 +771,68 @@ export default function HomeScreen() {
       </Modal>
 
       <Modal
+        visible={!!selectedOffer}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setSelectedOffer(null)}>
+        <View style={styles.detailOverlay}>
+          <Pressable style={styles.detailBackdrop} onPress={() => setSelectedOffer(null)} />
+          <View style={styles.detailSheet}>
+            <View style={styles.detailTopBar}>
+              <View style={styles.previewHandle} />
+              <Pressable style={styles.detailCloseBtn} onPress={() => setSelectedOffer(null)}>
+                <Ionicons name="close" size={18} color="#374151" />
+              </Pressable>
+            </View>
+
+            {selectedOffer && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScrollContent}>
+                <View style={styles.offerHero}>
+                  {selectedOffer.bannerImage ? (
+                    <Image source={{ uri: selectedOffer.bannerImage }} style={styles.offerHeroImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.offerHeroImage, { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="pricetag-outline" size={42} color="#9CA3AF" />
+                    </View>
+                  )}
+                  <View style={[styles.offerHeroBadge, { backgroundColor: primary }]}>
+                    <Text style={styles.offerHeroBadgeText}>
+                      {selectedOffer.discountPercentage ? `-${selectedOffer.discountPercentage}% OFF` : 'Oferta'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.offerTextBlock}>
+                  <Text style={styles.offerProductName}>{selectedOffer.title}</Text>
+                  <Text style={styles.offerProductTag}>Produto em oferta</Text>
+                  {selectedOffer.description ? (
+                    <Text style={styles.offerDescription}>{selectedOffer.description}</Text>
+                  ) : null}
+                </View>
+
+                <Pressable
+                  style={[styles.offerActionBtn, { backgroundColor: primary }]}
+                  onPress={() => {
+                    const offer = selectedOffer;
+                    if (!offer?.item) {
+                      Alert.alert('Oferta', 'Essa oferta ainda não trouxe um produto para adicionar ao carrinho.');
+                      setSelectedOffer(null);
+                      return;
+                    }
+                    handleAddItem(offer.item);
+                    setSelectedOffer(null);
+                  }}>
+                  <Ionicons name="bag-outline" size={18} color="#fff" />
+                  <Text style={styles.offerActionBtnText}>Adicionar ao carrinho</Text>
+                </Pressable>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
         visible={fullImageVisible}
         transparent
         animationType="fade"
@@ -815,6 +892,7 @@ const styles = StyleSheet.create({
   bannerFallbackText: { fontSize: 15, fontWeight: '700' },
   carousel: { marginTop: 16 },
   carouselSlide: { height: 160, borderRadius: 20, overflow: 'hidden', position: 'relative' },
+  carouselSlidePressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   carouselImage: { width: '100%', height: '100%' },
   carouselFallbackText: { fontSize: 15, fontWeight: '700' },
   carouselOverlay: {
@@ -826,7 +904,9 @@ const styles = StyleSheet.create({
   carouselBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 4 },
   carouselBadgeText: { color: '#fff', fontSize: 11, fontWeight: '900' },
   carouselTitle: { fontSize: 15, fontWeight: '900', color: '#fff' },
+  carouselProductName: { fontSize: 12, color: 'rgba(255,255,255,0.92)', fontWeight: '800' },
   carouselDesc: { fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+  carouselCta: { fontSize: 11, color: 'rgba(255,255,255,0.92)', fontWeight: '800', marginTop: 4 },
   dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 8 },
   dot: { height: 6, borderRadius: 3 },
 
@@ -946,6 +1026,30 @@ const styles = StyleSheet.create({
   detailBackdrop: { ...StyleSheet.absoluteFillObject },
   detailSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', overflow: 'hidden', flex: 1 },
   detailTopBar: { paddingTop: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  offerHero: { borderRadius: 22, overflow: 'hidden', position: 'relative' },
+  offerHeroImage: { width: '100%', height: 200 },
+  offerHeroBadge: {
+    position: 'absolute',
+    left: 12,
+    top: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  offerHeroBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  offerTextBlock: { gap: 4 },
+  offerProductName: { fontSize: 20, fontWeight: '900', color: '#071B5A', lineHeight: 26 },
+  offerProductTag: { fontSize: 12, fontWeight: '800', color: '#6B7280' },
+  offerDescription: { fontSize: 14, color: '#374151', lineHeight: 21 },
+  offerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 15,
+  },
+  offerActionBtnText: { color: '#fff', fontWeight: '900', fontSize: 15 },
   detailGalleryRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
   detailImageWrap: {
     flex: 1,

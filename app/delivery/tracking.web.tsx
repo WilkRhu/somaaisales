@@ -43,6 +43,7 @@ export default function DeliveryTrackingWebScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [existingRating, setExistingRating] = useState(false);
 
   useEffect(() => {
     if (authSession?.accessToken) setDeliveryAuthToken(authSession.accessToken);
@@ -58,6 +59,12 @@ export default function DeliveryTrackingWebScreen() {
       ]);
       setOrder(orderData);
       setTrackingEvents(events);
+      if (norm(orderData?.status) === 'DELIVERED') {
+        const rating = await deliveryApi.getOrderRating(orderId);
+        setExistingRating(Boolean(rating));
+      } else {
+        setExistingRating(false);
+      }
     } catch {
       setErrorModal('Não foi possível carregar o pedido no navegador.');
     } finally {
@@ -71,13 +78,14 @@ export default function DeliveryTrackingWebScreen() {
   }, [orderId]);
 
   const orderStatus = norm(order?.status);
+  const canRate = orderStatus === 'DELIVERED' && !existingRating;
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={primary} />
 
       <View style={[styles.header, { backgroundColor: primary }]}>
-        <Pressable style={styles.backBtn} onPress={() => router.replace('/delivery/orders')}>
+        <Pressable style={styles.backBtn} onPress={() => router.replace('/app/home')}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
         <View style={styles.headerText}>
@@ -139,6 +147,20 @@ export default function DeliveryTrackingWebScreen() {
             </View>
             <Text style={styles.addressText}>{order.deliveryAddress}</Text>
           </View>
+
+          {canRate && (
+            <Pressable style={[styles.rateBtn, { backgroundColor: primary }]} onPress={() => router.push(`/delivery/rating?orderId=${order.id}`)}>
+              <Ionicons name="star-outline" size={18} color="#fff" />
+              <Text style={styles.rateBtnText}>Avaliar pedido</Text>
+            </Pressable>
+          )}
+
+          {orderStatus === 'DELIVERED' && existingRating && (
+            <View style={styles.ratedBadge}>
+              <Ionicons name="checkmark-circle-outline" size={18} color="#10B981" />
+              <Text style={styles.ratedBadgeText}>Já avaliado</Text>
+            </View>
+          )}
         </ScrollView>
       )}
 
@@ -187,4 +209,8 @@ const styles = StyleSheet.create({
   eventTitle: { color: '#111827', fontWeight: '700' },
   eventDesc: { color: '#6B7280', fontSize: 12 },
   addressText: { fontSize: 14, color: '#374151', fontWeight: '500', lineHeight: 20 },
+  rateBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14 },
+  rateBtnText: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  ratedBadge: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 14, paddingVertical: 14, backgroundColor: '#ECFDF5' },
+  ratedBadgeText: { color: '#047857', fontWeight: '900', fontSize: 14 },
 });

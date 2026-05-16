@@ -56,27 +56,45 @@ export default function LoginScreen() {
   const showModal = (state: Omit<ModalState, 'visible'>) =>
     setModal({ visible: true, ...state });
 
-  useEffect(() => {
-    if (isSupported && savedCredentials) void tryBiometricLogin();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isSupported, savedCredentials]);
-
   const tryBiometricLogin = async () => {
-    const ok = await authenticate();
-    if (!ok) return;
-
-    const session = useAppStore.getState().authSession;
-    if (!session) {
+    if (!savedCredentials) {
       showModal({
-        title: 'Sessão expirada',
-        message: 'Sua sessão não está mais ativa. Entre novamente com e-mail e senha.',
-        icon: 'alert-circle-outline',
-        iconColor: '#EF4444',
+        title: 'Sem acesso rápido',
+        message: 'Faça o login com e-mail e senha para salvar a digital neste aparelho.',
+        icon: 'finger-print-outline',
+        iconColor: primaryColor,
       });
       return;
     }
 
-    router.replace('/app/home');
+    const ok = await authenticate();
+    if (!ok) return;
+
+    if (!tenant) {
+      showModal({
+        title: 'Selecione a loja',
+        message: 'Não foi possível identificar o estabelecimento.',
+        icon: 'storefront-outline',
+        iconColor: primaryColor,
+      });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const session = await authApi.login(savedCredentials.email, savedCredentials.password, savedCredentials.establishmentId);
+      setAuthSession(session);
+      router.replace('/app/home');
+    } catch {
+      showModal({
+        title: 'Sessão expirada',
+        message: 'Sua senha salva não conseguiu autenticar. Entre novamente com e-mail e senha.',
+        icon: 'alert-circle-outline',
+        iconColor: '#EF4444',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const doLogin = async (loginEmail: string, loginPassword: string, shouldSave: boolean) => {
@@ -113,6 +131,7 @@ export default function LoginScreen() {
               onPress: async () => {
                 await saveCredentials({
                   email: loginEmail,
+                  password: loginPassword,
                   establishmentId: tenant.id,
                   establishmentName: appConsumerConfig?.establishmentName ?? tenant.nome,
                   logo: appConsumerConfig?.logo ?? tenant.logo ?? null,
@@ -162,7 +181,10 @@ export default function LoginScreen() {
     type === 'face' ? 'scan-outline' : 'finger-print-outline';
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}>
       <StatusBar barStyle="light-content" backgroundColor={primaryColor} />
 
       <ScrollView

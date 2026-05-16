@@ -3,12 +3,17 @@ import { useMemo, useState } from 'react';
 import { FlatList, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { useCart } from '@/contexts/CartContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { useAppStore } from '@/store';
 import { mockProducts } from '@/utils/mockData';
+import { Product } from '@/types';
+
+const EMPTY_PRODUCTS: Product[] = [];
 
 export default function CatalogScreen() {
   const { addItem } = useCart();
-  const favoriteProducts = useAppStore((s) => s.favoriteProducts);
+  const { tenant } = useTenant();
+  const favoriteProducts = useAppStore((s) => s.favoriteProductsByScope[tenant?.id ?? 'default'] ?? EMPTY_PRODUCTS);
   const toggleFavoriteProduct = useAppStore((s) => s.toggleFavoriteProduct);
   const isFavoriteProduct = useAppStore((s) => s.isFavoriteProduct);
   const addRecentProduct = useAppStore((s) => s.addRecentProduct);

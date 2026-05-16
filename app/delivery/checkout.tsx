@@ -2,17 +2,18 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    Pressable,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -270,6 +271,13 @@ export default function DeliveryCheckoutScreen() {
           {cart.map((item, idx) => (
             <View key={item.product.id}>
               <View style={styles.orderItem}>
+                {getOrderItemImage(item.product) ? (
+                  <Image source={{ uri: getOrderItemImage(item.product)! }} style={styles.orderItemImage} />
+                ) : (
+                  <View style={styles.orderItemImageFallback}>
+                    <Ionicons name="cube-outline" size={12} color="#D1D5DB" />
+                  </View>
+                )}
                 <Text style={styles.orderItemQty}>{item.quantity}x</Text>
                 <Text style={styles.orderItemName} numberOfLines={1}>{item.product.name}</Text>
                 <Text style={[styles.orderItemPrice, { color: primary }]}>
@@ -479,6 +487,15 @@ const styles = StyleSheet.create({
   noAddress: { fontSize: 13, color: '#9CA3AF', fontStyle: 'italic' },
 
   orderItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  orderItemImage: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#F3F4F6' },
+  orderItemImageFallback: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   orderItemQty: { fontSize: 13, fontWeight: '800', color: '#6B7280', minWidth: 24 },
   orderItemName: { flex: 1, fontSize: 13, fontWeight: '600', color: '#111827' },
   orderItemPrice: { fontSize: 13, fontWeight: '800' },
@@ -541,3 +558,9 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: '#fff', fontWeight: '800', fontSize: 16, flex: 1, textAlign: 'center' },
   confirmBtnPrice: { color: 'rgba(255,255,255,0.85)', fontWeight: '700', fontSize: 14 },
 });
+
+function getOrderItemImage(product: DeliveryCartItem['product']) {
+  if (product.image) return product.image;
+  if (Array.isArray(product.images) && product.images.length > 0) return product.images[0];
+  return '';
+}

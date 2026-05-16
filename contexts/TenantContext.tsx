@@ -56,7 +56,8 @@ export function TenantProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     void bootstrapTenant();
-  }, [tenant]);
+    // Executa apenas na montagem; a hidratação do tenant é tratada pelo store.
+  }, []);
 
   const value = useMemo(
     () => ({ tenant, modules: tenant?.modulos ?? [], loading, loadTenantByCode, bootstrapTenant, refreshTenant }),

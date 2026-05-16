@@ -7,6 +7,7 @@ export default function DeliveryLayout() {
       <Stack.Screen name="products" />
       <Stack.Screen name="checkout" />
       <Stack.Screen name="tracking" />
+      <Stack.Screen name="rating" />
     </Stack>
   );
 }

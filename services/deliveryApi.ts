@@ -6,6 +6,8 @@ import {
     DeliveryEstablishment,
     DeliveryFeeResponse,
     DeliveryOrder,
+    DeliveryOrderRating,
+    DeliveryRatingPayload,
     DeliveryTrackingEvent,
     UserAddress
 } from '@/types';
@@ -171,6 +173,20 @@ export const deliveryApi = {
 
   async confirmReceipt(orderId: string): Promise<void> {
     await client.post(`/public/delivery/orders/${orderId}/confirm-receipt`);
+  },
+
+  async getOrderRating(orderId: string): Promise<DeliveryOrderRating | null> {
+    try {
+      const { data } = await client.get(`/delivery/ratings/orders/${orderId}`);
+      return data?.data ?? data ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  async createOrderRating(orderId: string, payload: DeliveryRatingPayload): Promise<DeliveryOrderRating> {
+    const { data } = await client.post(`/delivery/ratings/orders/${orderId}`, payload);
+    return data?.data ?? data;
   },
 
   // ─── Endereço do usuário ───────────────────────────────────────────────────

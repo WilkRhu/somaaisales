@@ -35,12 +35,29 @@ export default function DeliveryOrdersScreen() {
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const [cancelLoading, setCancelLoading] = useState(false);
   const [filter, setFilter] = useState<(typeof STATUS_FILTERS)[number]>('ALL');
+  const [ratedOrderIds, setRatedOrderIds] = useState<Record<string, boolean>>({});
 
   const load = async (isRefresh = false) => {
     isRefresh ? setRefreshing(true) : setLoading(true);
     try {
       const data = await deliveryApi.getMyOrders();
       setOrders(data);
+
+      const deliveredOrders = data.filter((order) => order.status?.toUpperCase() === 'DELIVERED');
+      const ratingChecks = await Promise.all(
+        deliveredOrders.map(async (order) => {
+          const rating = await deliveryApi.getOrderRating(order.id);
+          return [order.id, Boolean(rating)] as const;
+        }),
+      );
+
+      setRatedOrderIds((current) => {
+        const next = { ...current };
+        ratingChecks.forEach(([orderId, hasRating]) => {
+          next[orderId] = hasRating;
+        });
+        return next;
+      });
     } catch {
       setErrorModal(true);
     } finally {
@@ -112,12 +129,18 @@ export default function DeliveryOrdersScreen() {
     }
   };
 
+  const handleRateOrder = (orderId: string) => {
+    router.push(`/delivery/rating?orderId=${orderId}`);
+  };
+
+  const isOrderRated = (orderId: string) => Boolean(ratedOrderIds[orderId]);
+
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={primary} />
 
       <View style={[styles.header, { backgroundColor: primary }]}>
-        <Pressable style={styles.backBtn} onPress={() => router.back()}>
+        <Pressable style={styles.backBtn} onPress={() => router.replace('/app/home')}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
         <View style={styles.headerText}>
@@ -180,6 +203,20 @@ export default function DeliveryOrdersScreen() {
                 <Ionicons name="refresh-outline" size={15} color="#fff" />
                 <Text style={styles.reorderBtnText}>Pedir novamente</Text>
               </Pressable>
+              {item.status?.toUpperCase() === 'DELIVERED' && !isOrderRated(item.id) && (
+                <Pressable
+                  style={styles.rateBtn}
+                  onPress={(e) => { e.stopPropagation(); handleRateOrder(item.id); }}>
+                  <Ionicons name="star-outline" size={15} color={primary} />
+                  <Text style={[styles.rateBtnText, { color: primary }]}>Avaliar pedido</Text>
+                </Pressable>
+              )}
+              {item.status?.toUpperCase() === 'DELIVERED' && isOrderRated(item.id) && (
+                <View style={styles.ratedBadge}>
+                  <Ionicons name="checkmark-circle-outline" size={15} color="#10B981" />
+                  <Text style={styles.ratedBadgeText}>Já avaliado</Text>
+                </View>
+              )}
               {(['PENDING', 'CONFIRMED'].includes(item.status?.toUpperCase() ?? '')) && (
                 <Pressable
                   style={styles.cancelBtn}
@@ -372,6 +409,31 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   reorderBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
+  rateBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginTop: 2,
+  },
+  rateBtnText: { fontWeight: '800', fontSize: 13 },
+  ratedBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 6,
+    marginTop: 2,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    backgroundColor: '#ECFDF5',
+  },
+  ratedBadgeText: { fontSize: 13, fontWeight: '800', color: '#047857' },
   cancelBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2',

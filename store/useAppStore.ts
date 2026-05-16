@@ -9,8 +9,8 @@ type AppState = {
   appConsumerConfig: AppConsumerConfig | null;
   authSession: AuthSession | null;
   cartItems: CartItem[];
-  favoriteProducts: Product[];
-  recentProducts: Product[];
+  favoriteProductsByScope: Record<string, Product[]>;
+  recentProductsByScope: Record<string, Product[]>;
   loadingTenant: boolean;
   setTenant: (tenant: Tenant | null) => void;
   setAppConsumerConfig: (config: AppConsumerConfig | null) => void;
@@ -25,6 +25,10 @@ type AppState = {
   addRecentProduct: (product: Product) => void;
 };
 
+function getScopeId(state: Pick<AppState, 'appConsumerConfig' | 'tenant'>) {
+  return state.appConsumerConfig?.establishmentId ?? state.tenant?.id ?? 'default';
+}
+
 export const useAppStore = create<AppState>()(
   persist(
     (set, get) => ({
@@ -32,8 +36,8 @@ export const useAppStore = create<AppState>()(
       appConsumerConfig: null,
       authSession: null,
       cartItems: [],
-      favoriteProducts: [],
-      recentProducts: [],
+      favoriteProductsByScope: {},
+      recentProductsByScope: {},
       loadingTenant: true,
       setTenant: (tenant) => set({ tenant }),
       setAppConsumerConfig: (appConsumerConfig) => set({ appConsumerConfig }),
@@ -74,19 +78,33 @@ export const useAppStore = create<AppState>()(
       clearCart: () => set({ cartItems: [] }),
       toggleFavoriteProduct: (product) =>
         set((state) => {
-          const exists = state.favoriteProducts.some((item) => item.id === product.id);
+          const scopeId = getScopeId(state);
+          const current = state.favoriteProductsByScope[scopeId] ?? [];
+          const exists = current.some((item) => item.id === product.id);
           return {
-            favoriteProducts: exists
-              ? state.favoriteProducts.filter((item) => item.id !== product.id)
-              : [product, ...state.favoriteProducts].slice(0, 24),
+            favoriteProductsByScope: {
+              ...state.favoriteProductsByScope,
+              [scopeId]: exists
+                ? current.filter((item) => item.id !== product.id)
+                : [product, ...current].slice(0, 24),
+            },
           };
         }),
-      isFavoriteProduct: (productId) =>
-        get().favoriteProducts.some((item) => item.id === productId),
+      isFavoriteProduct: (productId) => {
+        const scopeId = getScopeId(get());
+        return (get().favoriteProductsByScope[scopeId] ?? []).some((item) => item.id === productId);
+      },
       addRecentProduct: (product) =>
         set((state) => {
-          const filtered = state.recentProducts.filter((item) => item.id !== product.id);
-          return { recentProducts: [product, ...filtered].slice(0, 12) };
+          const scopeId = getScopeId(state);
+          const current = state.recentProductsByScope[scopeId] ?? [];
+          const filtered = current.filter((item) => item.id !== product.id);
+          return {
+            recentProductsByScope: {
+              ...state.recentProductsByScope,
+              [scopeId]: [product, ...filtered].slice(0, 12),
+            },
+          };
         }),
     }),
     {
@@ -97,12 +115,22 @@ export const useAppStore = create<AppState>()(
         appConsumerConfig: state.appConsumerConfig,
         authSession: state.authSession,
         cartItems: state.cartItems,
-        favoriteProducts: state.favoriteProducts,
-        recentProducts: state.recentProducts,
+        favoriteProductsByScope: state.favoriteProductsByScope,
+        recentProductsByScope: state.recentProductsByScope,
       }),
     },
   ),
 );
+
+export const selectFavoriteProducts = (state: AppState) => {
+  const scopeId = getScopeId(state);
+  return state.favoriteProductsByScope[scopeId] ?? [];
+};
+
+export const selectRecentProducts = (state: AppState) => {
+  const scopeId = getScopeId(state);
+  return state.recentProductsByScope[scopeId] ?? [];
+};
 
 export const getCartTotals = (items: CartItem[]) => ({
   totalItems: items.reduce((sum, item) => sum + item.quantity, 0),

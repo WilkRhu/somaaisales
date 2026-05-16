@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -375,6 +376,13 @@ export default function CheckoutScreen() {
             <View key={item.product.id}>
               <View style={styles.orderItem}>
                 <Text style={styles.orderItemQty}>{item.quantity}x</Text>
+                {getItemImage(item.product) ? (
+                  <Image source={{ uri: getItemImage(item.product)! }} style={styles.orderItemImage} />
+                ) : (
+                  <View style={styles.orderItemImageFallback}>
+                    <Ionicons name="cube-outline" size={12} color="#D1D5DB" />
+                  </View>
+                )}
                 <Text style={styles.orderItemName} numberOfLines={1}>{item.product.name}</Text>
                 <Text style={[styles.orderItemPrice, { color: primary }]}>R$ {(item.product.price * item.quantity).toFixed(2)}</Text>
               </View>
@@ -700,6 +708,15 @@ const styles = StyleSheet.create({
   addAddressBtn: { flexDirection: 'row', alignItems: 'center', gap: 10, borderWidth: 1.5, borderStyle: 'dashed', borderRadius: 12, padding: 14, justifyContent: 'center' },
   addAddressBtnText: { fontSize: 14, fontWeight: '700' },
   orderItem: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 4 },
+  orderItemImage: { width: 28, height: 28, borderRadius: 8, backgroundColor: '#F3F4F6' },
+  orderItemImageFallback: {
+    width: 28,
+    height: 28,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   orderItemQty: { fontSize: 13, fontWeight: '800', color: '#6B7280', minWidth: 24 },
   orderItemName: { flex: 1, fontSize: 13, fontWeight: '600', color: '#111827' },
   orderItemPrice: { fontSize: 13, fontWeight: '800' },
@@ -760,6 +777,12 @@ const styles = StyleSheet.create({
   cepHint: { fontSize: 11, color: '#9CA3AF', fontWeight: '500', marginTop: 3 },
   modalSaveBtn: { borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', marginTop: 16 },
   modalSaveBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },});
+
+function getItemImage(product: { image?: string; images?: string[] }) {
+  if (product.image) return product.image;
+  if (Array.isArray(product.images) && product.images.length > 0) return product.images[0];
+  return '';
+}
 
 function AddrField({ label, value, onChangeText, placeholder, keyboardType, autoCapitalize }: {
   label: string; value: string; onChangeText: (v: string) => void;
