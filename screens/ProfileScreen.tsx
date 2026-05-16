@@ -43,6 +43,7 @@ export default function ProfileScreen() {
 
   // Modal novo endereço
   const [addressModal, setAddressModal] = useState(false);
+  const [editingAddressId, setEditingAddressId] = useState<string | null>(null);
   const [newAddr, setNewAddr] = useState({
     label: '', street: '', number: '', complement: '', neighborhood: '',
     city: '', state: '', zipCode: '',
@@ -92,6 +93,13 @@ export default function ProfileScreen() {
     } finally {
       setLoadingAddresses(false);
     }
+  };
+
+  const resetAddressForm = () => {
+    setEditingAddressId(null);
+    setNewAddr({ label: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '' });
+    setNewAddrCoords(null);
+    setFetchingCep(false);
   };
 
   const handleCepChange = async (raw: string) => {
@@ -154,11 +162,15 @@ export default function ProfileScreen() {
         longitude: newAddrCoords?.longitude,
         isDefault: addresses.length === 0,
       };
-      const saved = await deliveryApi.createAddress(payload);
-      setAddresses((prev) => [...prev, saved]);
+      if (editingAddressId) {
+        const updated = await deliveryApi.updateAddress(editingAddressId, payload);
+        setAddresses((prev) => prev.map((a) => (a.id === editingAddressId ? updated : a)));
+      } else {
+        const saved = await deliveryApi.createAddress(payload);
+        setAddresses((prev) => [...prev, saved]);
+      }
       setAddressModal(false);
-      setNewAddrCoords(null);
-      setNewAddr({ label: '', street: '', number: '', complement: '', neighborhood: '', city: '', state: '', zipCode: '' });
+      resetAddressForm();
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401) { Alert.alert('Sessão expirada', 'Faça login novamente.'); return; }
@@ -180,6 +192,26 @@ export default function ProfileScreen() {
         },
       },
     ]);
+  };
+
+  const handleEditAddress = (address: UserAddress) => {
+    setEditingAddressId(address.id);
+    setNewAddr({
+      label: address.label ?? '',
+      street: address.street ?? '',
+      number: address.number ?? '',
+      complement: address.complement ?? '',
+      neighborhood: address.neighborhood ?? '',
+      city: address.city ?? '',
+      state: address.state ?? '',
+      zipCode: address.zipCode ?? '',
+    });
+    setNewAddrCoords(
+      address.latitude !== undefined && address.longitude !== undefined
+        ? { latitude: address.latitude, longitude: address.longitude }
+        : null,
+    );
+    setAddressModal(true);
   };
 
   const handleSetDefault = async (addressId: string) => {
@@ -361,7 +393,7 @@ export default function ProfileScreen() {
               <Ionicons name="location-outline" size={18} color={primary} />
               <Text style={styles.sectionTitle}>Meus endereços</Text>
             </View>
-            <Pressable style={[styles.addBtn, { backgroundColor: primary }]} onPress={() => setAddressModal(true)}>
+            <Pressable style={[styles.addBtn, { backgroundColor: primary }]} onPress={() => { resetAddressForm(); setAddressModal(true); }}>
               <Ionicons name="add" size={16} color="#fff" />
               <Text style={styles.addBtnText}>Novo</Text>
             </Pressable>
@@ -370,7 +402,7 @@ export default function ProfileScreen() {
           {loadingAddresses ? (
             <ActivityIndicator size="small" color={primary} style={{ marginVertical: 20 }} />
           ) : addresses.length === 0 ? (
-            <Pressable style={[styles.emptyAddress, { borderColor: `${primary}40` }]} onPress={() => setAddressModal(true)}>
+            <Pressable style={[styles.emptyAddress, { borderColor: `${primary}40` }]} onPress={() => { resetAddressForm(); setAddressModal(true); }}>
               <Ionicons name="add-circle-outline" size={28} color={primary} />
               <Text style={[styles.emptyAddressText, { color: primary }]}>Adicionar endereço de entrega</Text>
             </Pressable>
@@ -388,6 +420,9 @@ export default function ProfileScreen() {
                   {addr.complement ? <Text style={styles.addressSub}>{addr.complement}</Text> : null}
                 </View>
                 <View style={styles.addressActions}>
+                  <Pressable onPress={() => handleEditAddress(addr)} style={styles.addressActionBtn}>
+                    <Ionicons name="pencil-outline" size={16} color="#6B7280" />
+                  </Pressable>
                   {!addr.isDefault && (
                     <Pressable onPress={() => handleSetDefault(addr.id)} style={styles.addressActionBtn}>
                       <Ionicons name="star-outline" size={16} color={primary} />
@@ -478,8 +513,8 @@ export default function ProfileScreen() {
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Novo endereço</Text>
-              <Pressable onPress={() => setAddressModal(false)}>
+              <Text style={styles.modalTitle}>{editingAddressId ? 'Editar endereço' : 'Novo endereço'}</Text>
+              <Pressable onPress={() => { setAddressModal(false); resetAddressForm(); }}>
                 <Ionicons name="close" size={22} color="#374151" />
               </Pressable>
             </View>
@@ -538,7 +573,7 @@ export default function ProfileScreen() {
               style={[styles.modalSaveBtn, { backgroundColor: primary }, savingAddress && { opacity: 0.7 }]}
               onPress={handleSaveAddress}
               disabled={savingAddress}>
-              {savingAddress ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalSaveBtnText}>Salvar endereço</Text>}
+              {savingAddress ? <ActivityIndicator color="#fff" /> : <Text style={styles.modalSaveBtnText}>{editingAddressId ? 'Salvar alterações' : 'Salvar endereço'}</Text>}
             </Pressable>
           </View>
         </KeyboardAvoidingView>

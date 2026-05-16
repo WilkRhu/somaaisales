@@ -67,6 +67,7 @@ export const deliveryApi = {
           name: item.name,
           price: Number(item.offerPrice ?? item.salePrice ?? item.price ?? 0),
           image: item.images?.[0] ?? item.image ?? item.imageUrl ?? '',
+          images: Array.isArray(item.images) ? item.images.filter(Boolean) : item.image ? [item.image] : item.imageUrl ? [item.imageUrl] : [],
           category: item.category ?? 'Geral',
           description: item.description,
           unit: item.unit,

@@ -9,6 +9,8 @@ type AppState = {
   appConsumerConfig: AppConsumerConfig | null;
   authSession: AuthSession | null;
   cartItems: CartItem[];
+  favoriteProducts: Product[];
+  recentProducts: Product[];
   loadingTenant: boolean;
   setTenant: (tenant: Tenant | null) => void;
   setAppConsumerConfig: (config: AppConsumerConfig | null) => void;
@@ -18,15 +20,20 @@ type AppState = {
   removeFromCart: (productId: string) => void;
   decrementFromCart: (productId: string) => void;
   clearCart: () => void;
+  toggleFavoriteProduct: (product: Product) => void;
+  isFavoriteProduct: (productId: string) => boolean;
+  addRecentProduct: (product: Product) => void;
 };
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       tenant: null,
       appConsumerConfig: null,
       authSession: null,
       cartItems: [],
+      favoriteProducts: [],
+      recentProducts: [],
       loadingTenant: true,
       setTenant: (tenant) => set({ tenant }),
       setAppConsumerConfig: (appConsumerConfig) => set({ appConsumerConfig }),
@@ -65,6 +72,22 @@ export const useAppStore = create<AppState>()(
           };
         }),
       clearCart: () => set({ cartItems: [] }),
+      toggleFavoriteProduct: (product) =>
+        set((state) => {
+          const exists = state.favoriteProducts.some((item) => item.id === product.id);
+          return {
+            favoriteProducts: exists
+              ? state.favoriteProducts.filter((item) => item.id !== product.id)
+              : [product, ...state.favoriteProducts].slice(0, 24),
+          };
+        }),
+      isFavoriteProduct: (productId) =>
+        get().favoriteProducts.some((item) => item.id === productId),
+      addRecentProduct: (product) =>
+        set((state) => {
+          const filtered = state.recentProducts.filter((item) => item.id !== product.id);
+          return { recentProducts: [product, ...filtered].slice(0, 12) };
+        }),
     }),
     {
       name: '@somaai:app-store',
@@ -74,6 +97,8 @@ export const useAppStore = create<AppState>()(
         appConsumerConfig: state.appConsumerConfig,
         authSession: state.authSession,
         cartItems: state.cartItems,
+        favoriteProducts: state.favoriteProducts,
+        recentProducts: state.recentProducts,
       }),
     },
   ),

@@ -3,6 +3,7 @@ import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Pressable,
   RefreshControl,
@@ -25,6 +26,8 @@ export default function DeliveryOrdersScreen() {
   const theme = useTheme();
   const primary = theme.colors.primary;
   const authSession = useAppStore((s) => s.authSession);
+  const addToCart = useAppStore((s) => s.addToCart);
+  const clearCart = useAppStore((s) => s.clearCart);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -78,6 +81,36 @@ export default function DeliveryOrdersScreen() {
     if (filter === 'ALL') return orders;
     return orders.filter((o) => o.status?.toUpperCase() === filter);
   }, [orders, filter]);
+
+  const handleReorder = async (order: DeliveryOrder) => {
+    try {
+      const fullOrder = await deliveryApi.getOrderById(order.id);
+      const items = extractReorderItems(fullOrder);
+
+      if (items.length === 0) {
+        Alert.alert('Pedir novamente', 'Não encontramos os itens deste pedido.');
+        return;
+      }
+
+      clearCart();
+      items.forEach((item) => {
+        const product = {
+          id: item.itemId,
+          name: item.productName,
+          price: item.unitPrice,
+          image: '',
+          category: 'Recompra',
+        };
+        for (let i = 0; i < item.quantity; i += 1) {
+          addToCart(product);
+        }
+      });
+
+      router.push('/app/carrinho');
+    } catch {
+      Alert.alert('Pedir novamente', 'Não foi possível carregar os itens deste pedido.');
+    }
+  };
 
   return (
     <View style={styles.root}>
@@ -141,7 +174,13 @@ export default function DeliveryOrdersScreen() {
                 <Text style={styles.payment}>{paymentLabel(item.paymentMethod)}</Text>
                 <Text style={[styles.total, { color: primary }]}>R$ {Number(item.total ?? 0).toFixed(2)}</Text>
               </View>
-              {(item.status?.toUpperCase() === 'PENDING' || item.status?.toUpperCase() === 'CONFIRMED') && (
+              <Pressable
+                style={[styles.reorderBtn, { backgroundColor: primary }]}
+                onPress={(e) => { e.stopPropagation(); void handleReorder(item); }}>
+                <Ionicons name="refresh-outline" size={15} color="#fff" />
+                <Text style={styles.reorderBtnText}>Pedir novamente</Text>
+              </Pressable>
+              {(['PENDING', 'CONFIRMED'].includes(item.status?.toUpperCase() ?? '')) && (
                 <Pressable
                   style={styles.cancelBtn}
                   onPress={(e) => { e.stopPropagation(); setCancelOrderId(item.id); }}>
@@ -221,6 +260,84 @@ function paymentLabel(method: string) {
   return map[method] ?? method;
 }
 
+function extractReorderItems(order: any) {
+  const candidates = [
+    order?.sale?.items,
+    order?.items,
+    order?.data?.sale?.items,
+    order?.data?.items,
+    order?.orderItems,
+  ];
+
+  for (const candidate of candidates) {
+    if (!Array.isArray(candidate) || candidate.length === 0) continue;
+    return candidate
+      .map((item: any) => ({
+        itemId: item.itemId ?? item.productId ?? item.id ?? '',
+        productName: item.productName ?? item.name ?? item.product?.name ?? 'Produto',
+        unitPrice: parseMoney(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
+        quantity: parseQuantity(item.quantity ?? 1),
+      }))
+      .filter((item) => item.itemId);
+  }
+
+  return [];
+}
+
+function parseMoney(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return 0;
+    const hasComma = trimmed.includes(',');
+    const hasDot = trimmed.includes('.');
+    if (hasComma) {
+      const normalized = trimmed.replace(/\./g, '').replace(',', '.');
+      const parsed = Number(normalized);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    if (hasDot) {
+      const parts = trimmed.split('.');
+      const last = parts[parts.length - 1];
+      if (last.length === 2) {
+        const parsed = Number(trimmed);
+        return Number.isFinite(parsed) ? parsed : 0;
+      }
+      const parsed = Number(trimmed.replace(/\./g, ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    const parsed = Number(trimmed);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function parseQuantity(value: unknown) {
+  if (typeof value === 'number') return Number.isFinite(value) ? Math.max(1, Math.round(value)) : 1;
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (!trimmed) return 1;
+    const hasComma = trimmed.includes(',');
+    const hasDot = trimmed.includes('.');
+    let parsed = Number.NaN;
+    if (hasComma) {
+      parsed = Number(trimmed.replace(/\./g, '').replace(',', '.'));
+    } else if (hasDot) {
+      const parts = trimmed.split('.');
+      const last = parts.at(-1) ?? '';
+      if (last.length === 3 && parts.length === 2) {
+        parsed = Number(parts[0]);
+      } else {
+        parsed = Number(trimmed.replace(/\./g, ''));
+      }
+    } else {
+      parsed = Number(trimmed);
+    }
+    return Number.isFinite(parsed) ? Math.max(1, Math.round(parsed)) : 1;
+  }
+  return 1;
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F5F5' },
   header: { paddingTop: 64, paddingBottom: 26, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -245,6 +362,16 @@ const styles = StyleSheet.create({
   cardBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginTop: 4 },
   payment: { fontSize: 12, fontWeight: '600', color: '#6B7280' },
   total: { fontSize: 16, fontWeight: '900' },
+  reorderBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 12,
+    paddingVertical: 10,
+    marginTop: 2,
+  },
+  reorderBtnText: { color: '#fff', fontWeight: '800', fontSize: 13 },
   cancelBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
     borderWidth: 1, borderColor: '#FECACA', backgroundColor: '#FEF2F2',
