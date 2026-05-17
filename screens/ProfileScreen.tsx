@@ -65,12 +65,30 @@ export default function ProfileScreen() {
   const [pickingAvatar, setPickingAvatar] = useState(false);
 
   useEffect(() => {
-    if (authSession?.accessToken) setDeliveryAuthToken(authSession.accessToken);
+    if (authSession?.accessToken) {
+      setDeliveryAuthToken(authSession.accessToken);
+    }
   }, [authSession]);
 
   useEffect(() => {
+    if (!authSession?.accessToken) return;
     loadAddresses();
-  }, []);
+  }, [authSession?.accessToken]);
+
+  useEffect(() => {
+    if (!authSession?.accessToken) return;
+
+    const loadDefaultAddress = async () => {
+      try {
+        const address = await deliveryApi.getDefaultAddress();
+        console.log('[ProfileScreen] endereço padrão ao abrir a página:', address);
+      } catch (error) {
+        console.log('[ProfileScreen] falha ao buscar endereço padrão:', error);
+      }
+    };
+
+    loadDefaultAddress();
+  }, [authSession?.accessToken]);
 
   useEffect(() => {
     if (user) {

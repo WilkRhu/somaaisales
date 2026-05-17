@@ -13,9 +13,10 @@ import {
 } from '@/types';
 
 const CART_KEY_PREFIX = 'somaai:delivery-cart-';
+export const DELIVERY_BASE_URL = 'https://api.somaaibusiness.com.br';
 
 const client = axios.create({
-  baseURL: 'http://somaai-alb-1884847772.us-east-1.elb.amazonaws.com',
+  baseURL: DELIVERY_BASE_URL,
   timeout: 15000,
 });
 
@@ -23,8 +24,10 @@ const client = axios.create({
 export function setDeliveryAuthToken(token: string | null) {
   if (token) {
     client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    console.log('[deliveryApi] Authorization definido:', `Bearer ${token.slice(0, 12)}...`);
   } else {
     delete client.defaults.headers.common['Authorization'];
+    console.log('[deliveryApi] Authorization removido');
   }
 }
 
@@ -198,7 +201,8 @@ export const deliveryApi = {
 
   async getDefaultAddress(): Promise<UserAddress | null> {
     const { data } = await client.get('/public/customers/me/addresses/default');
-    return data?.data ?? null;
+    const address = data?.data ?? null;
+    return address;
   },
 
   async createAddress(payload: {
