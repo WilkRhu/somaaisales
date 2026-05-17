@@ -2,20 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 import {
-    DeliveryCartItem,
-    DeliveryEstablishment,
-    DeliveryFeeResponse,
-    DeliveryOrder,
-    DeliveryOrderRating,
-    DeliveryRatingPayload,
-    DeliveryTrackingEvent,
-    UserAddress
+  DeliveryCartItem,
+  DeliveryEstablishment,
+  DeliveryFeeResponse,
+  DeliveryOrder,
+  DeliveryOrderRating,
+  DeliveryRatingPayload,
+  DeliveryTrackingEvent,
+  UserAddress
 } from '@/types';
 
 const CART_KEY_PREFIX = 'somaai:delivery-cart-';
 
 const client = axios.create({
-  baseURL: 'https://somaaibackend.onrender.com',
+  baseURL: 'http://somaai-alb-1884847772.us-east-1.elb.amazonaws.com',
   timeout: 15000,
 });
 
