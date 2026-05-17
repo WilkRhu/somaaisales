@@ -46,6 +46,7 @@ export default function StoreSelectionScreen() {
   const [longitude, setLongitude] = useState<number | null>(null);
   const [radiusKm, setRadiusKm] = useState('10');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedType, setSelectedType] = useState('ALL');
   const [stores, setStores] = useState<NearbyEstablishment[]>([]);
   const { loadTenantByCode } = useTenant();
   const setAppConsumerConfig = useAppStore((state) => state.setAppConsumerConfig);
@@ -108,11 +109,22 @@ export default function StoreSelectionScreen() {
 
   const filteredStores = stores.filter((store) => {
     const q = searchQuery.trim().toLowerCase();
+    const storeType = getStoreType(store);
+    const typeOk = selectedType === 'ALL' || storeType === selectedType;
+    if (!typeOk) return false;
     if (!q) return true;
-    return [store.nome, store.address, store.city, store.state, store.description]
+    return [store.nome, store.address, store.city, store.state, store.description, storeType]
       .filter(Boolean)
       .some((v) => String(v).toLowerCase().includes(q));
   });
+
+  const storeTypes = Array.from(
+    new Set(
+      stores
+        .map((store) => getStoreType(store))
+        .filter(Boolean),
+    ),
+  );
 
   const isLoading = loadingLocation || loadingStores;
 
@@ -193,6 +205,32 @@ export default function StoreSelectionScreen() {
               placeholderTextColor={C.textMuted}
               style={styles.filterInput}
             />
+          </View>
+        </View>
+
+        <View style={styles.typeSection}>
+          <View style={styles.filterLabelRow}>
+            <Ionicons name="pricetags-outline" size={13} color={C.textPrimary} />
+            <Text style={styles.filterLabel}>Tipo de estabelecimento</Text>
+          </View>
+          <View style={styles.typeChipsRow}>
+            <Pressable
+              onPress={() => setSelectedType('ALL')}
+              style={[styles.typeChip, selectedType === 'ALL' && styles.typeChipActive]}>
+              <Text style={[styles.typeChipText, selectedType === 'ALL' && styles.typeChipTextActive]}>
+                Todos
+              </Text>
+            </Pressable>
+            {storeTypes.map((type) => (
+              <Pressable
+                key={type}
+                onPress={() => setSelectedType(type)}
+                style={[styles.typeChip, selectedType === type && styles.typeChipActive]}>
+                <Text style={[styles.typeChipText, selectedType === type && styles.typeChipTextActive]}>
+                  {formatStoreType(type)}
+                </Text>
+              </Pressable>
+            ))}
           </View>
         </View>
       </View>
@@ -286,6 +324,18 @@ function StoreCard({ store, onPress }: { store: NearbyEstablishment; onPress: ()
   );
 }
 
+function getStoreType(store: NearbyEstablishment) {
+  return (store.type ?? store.segment ?? store.businessType ?? '').trim();
+}
+
+function formatStoreType(value: string) {
+  return value
+    .split(/[_-]/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1).toLowerCase())
+    .join(' ');
+}
+
 // ─── Estilos ────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   root: {
@@ -377,6 +427,28 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: C.textPrimary,
+  },
+  typeSection: { gap: 8, marginTop: 12 },
+  typeChipsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  typeChip: {
+    borderWidth: 1,
+    borderColor: C.border,
+    backgroundColor: C.bg,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 999,
+  },
+  typeChipActive: {
+    backgroundColor: C.bluePrimary,
+    borderColor: C.bluePrimary,
+  },
+  typeChipText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: C.textPrimary,
+  },
+  typeChipTextActive: {
+    color: C.white,
   },
 
   // Loading

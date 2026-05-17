@@ -15,6 +15,7 @@ export type Offer = {
   discountPercentage?: number;
   bannerImage?: string;
   image?: string;
+  item?: Product;
   startDate?: string;
   endDate?: string;
   isActive?: boolean;
@@ -25,6 +26,9 @@ export type NearbyEstablishment = {
   id: string;
   nome: string;
   logo: string;
+  type?: string;
+  segment?: string;
+  businessType?: string;
   latitude?: string;
   longitude?: string;
   address?: string | null;
@@ -100,6 +104,7 @@ export type Product = {
   name: string;
   price: number;
   image: string;
+  images?: string[];
   category: string;
   featured?: boolean;
   // campos extras do inventory
@@ -181,6 +186,36 @@ export type DeliveryOrderItem = {
   unitPrice: number;
   quantity: number;
   discount: number;
+};
+
+export type DeliveryRatingPayload = {
+  establishmentRating?: number;
+  establishmentComment?: string;
+  establishmentQuality?: number;
+  establishmentPackaging?: number;
+  establishmentAccuracy?: number;
+  driverRating?: number;
+  driverComment?: string;
+  driverPunctuality?: number;
+  driverCleanliness?: number;
+  driverProfessionalism?: number;
+};
+
+export type DeliveryOrderRating = {
+  id: string;
+  orderId: string;
+  customerId?: string;
+  establishmentRating?: number;
+  establishmentComment?: string;
+  establishmentQuality?: number;
+  establishmentPackaging?: number;
+  establishmentAccuracy?: number;
+  driverRating?: number;
+  driverComment?: string;
+  driverPunctuality?: number;
+  driverCleanliness?: number;
+  driverProfessionalism?: number;
+  createdAt?: string;
 };
 
 export type UserAddress = {

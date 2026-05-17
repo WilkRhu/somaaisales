@@ -7,12 +7,14 @@ import {
   FlatList,
   Image,
   Modal,
+  Alert,
   Pressable,
   RefreshControl,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   useWindowDimensions,
   View
 } from 'react-native';
@@ -27,6 +29,7 @@ import { useAppStore, useOffersStore } from '@/store';
 import { Product } from '@/types';
 
 const ALL_LABEL = 'Todos';
+const EMPTY_PRODUCTS: Product[] = [];
 
 export default function HomeScreen() {
   const { tenant } = useTenant();
@@ -35,6 +38,9 @@ export default function HomeScreen() {
   const authSession = useAppStore((s) => s.authSession);
   const setAuthSession = useAppStore((s) => s.setAuthSession);
   const clearCart = useAppStore((s) => s.clearCart);
+  const toggleFavoriteProduct = useAppStore((s) => s.toggleFavoriteProduct);
+  const isFavoriteProduct = useAppStore((s) => s.isFavoriteProduct);
+  const addRecentProduct = useAppStore((s) => s.addRecentProduct);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -42,10 +48,14 @@ export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeCategory, setActiveCategory] = useState(ALL_LABEL);
+  const [searchQuery, setSearchQuery] = useState('');
   const [toastProduct, setToastProduct] = useState<string | null>(null);
   const [cartPreviewVisible, setCartPreviewVisible] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedOffer, setSelectedOffer] = useState<(typeof offers)[number] | null>(null);
+  const [detailImageIndex, setDetailImageIndex] = useState(0);
+  const [fullImageVisible, setFullImageVisible] = useState(false);
 
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -65,6 +75,8 @@ export default function HomeScreen() {
   const userEmail = authSession?.user?.email ?? '';
   const userAvatar = authSession?.user?.avatar ?? null;
   const establishmentId = appConsumerConfig?.establishmentId ?? tenant?.id;
+  const favoriteProducts = useAppStore((s) => s.favoriteProductsByScope[establishmentId ?? 'default'] ?? EMPTY_PRODUCTS);
+  const recentProducts = useAppStore((s) => s.recentProductsByScope[establishmentId ?? 'default'] ?? EMPTY_PRODUCTS);
 
   const fetchProducts = (isRefresh = false) => {
     if (!establishmentId) return;
@@ -93,6 +105,10 @@ export default function HomeScreen() {
     }, 3500);
     return () => { if (autoPlayRef.current) clearInterval(autoPlayRef.current); };
   }, [offers.length]);
+
+  useEffect(() => {
+    setDetailImageIndex(0);
+  }, [selectedProduct?.id]);
 
   const showToast = (name: string) => {
     if (toastTimeout.current) clearTimeout(toastTimeout.current);
@@ -128,7 +144,13 @@ export default function HomeScreen() {
   };
 
   const categories = [ALL_LABEL, ...Array.from(new Set(products.map((p) => p.category).filter(Boolean)))];
-  const filtered = activeCategory === ALL_LABEL ? products : products.filter((p) => p.category === activeCategory);
+  const filtered = (activeCategory === ALL_LABEL ? products : products.filter((p) => p.category === activeCategory))
+    .filter((p) => {
+      const q = searchQuery.trim().toLowerCase();
+      if (!q) return true;
+      return [p.name, p.category, p.description].filter(Boolean).some((value) => String(value).toLowerCase().includes(q));
+    });
+  const recentVisible = recentProducts.filter((item) => products.some((product) => product.id === item.id));
   const cartTotal = items.reduce((s, i) => s + i.product.price * i.quantity, 0);
 
   return (
@@ -227,7 +249,9 @@ export default function HomeScreen() {
                   }}
                   getItemLayout={(_, index) => ({ length: SLIDE_WIDTH + 12, offset: (SLIDE_WIDTH + 12) * index, index })}
                   renderItem={({ item }) => (
-                    <View style={[styles.carouselSlide, { width: SLIDE_WIDTH }]}>
+                    <Pressable
+                      style={({ pressed }) => [styles.carouselSlide, { width: SLIDE_WIDTH }, pressed && styles.carouselSlidePressed]}
+                      onPress={() => setSelectedOffer(item)}>
                       {item.bannerImage ? (
                         <Image source={{ uri: item.bannerImage }} style={styles.carouselImage} />
                       ) : (
@@ -243,11 +267,13 @@ export default function HomeScreen() {
                           </View>
                         ) : null}
                         <Text style={styles.carouselTitle} numberOfLines={1}>{item.title}</Text>
-                        {item.description ? (
-                          <Text style={styles.carouselDesc} numberOfLines={1}>{item.description}</Text>
-                        ) : null}
+                        <Text style={styles.carouselProductName} numberOfLines={1}>Produto em oferta</Text>
+                        {item.description ? <Text style={styles.carouselDesc} numberOfLines={1}>{item.description}</Text> : null}
+                        <Text style={styles.carouselCta}>
+                          Toque para ver a oferta
+                        </Text>
                       </View>
-                    </View>
+                    </Pressable>
                   )}
                 />
                 {offers.length > 1 && (
@@ -260,6 +286,68 @@ export default function HomeScreen() {
                     ))}
                   </View>
                 )}
+              </View>
+            )}
+
+            <View style={styles.searchWrap}>
+              <View style={styles.searchBox}>
+                <Ionicons name="search-outline" size={18} color="#9CA3AF" />
+                <TextInput
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                  placeholder="Buscar produtos, categoria ou descrição"
+                  placeholderTextColor="#9CA3AF"
+                  style={styles.searchInput}
+                />
+                {searchQuery ? (
+                  <Pressable onPress={() => setSearchQuery('')}>
+                    <Ionicons name="close-circle" size={18} color="#9CA3AF" />
+                  </Pressable>
+                ) : null}
+              </View>
+            </View>
+
+            {favoriteProducts.length > 0 && (
+              <View style={styles.quickSection}>
+                <View style={styles.quickSectionHeader}>
+                  <Text style={styles.quickSectionTitle}>Favoritos</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  data={favoriteProducts}
+                  keyExtractor={(item) => item.id}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickList}
+                  renderItem={({ item }) => (
+                    <Pressable style={styles.quickCard} onPress={() => { setSelectedProduct(item); addRecentProduct(item); }}>
+                      <Image source={{ uri: item.image }} style={styles.quickCardImage} />
+                      <Text style={styles.quickCardTitle} numberOfLines={1}>{item.name}</Text>
+                      <Text style={[styles.quickCardPrice, { color: primary }]}>R$ {item.price.toFixed(2)}</Text>
+                    </Pressable>
+                  )}
+                />
+              </View>
+            )}
+
+            {recentVisible.length > 0 && (
+              <View style={styles.quickSection}>
+                <View style={styles.quickSectionHeader}>
+                  <Text style={styles.quickSectionTitle}>Vistos recentemente</Text>
+                </View>
+                <FlatList
+                  horizontal
+                  data={recentVisible}
+                  keyExtractor={(item) => item.id}
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.quickList}
+                  renderItem={({ item }) => (
+                    <Pressable style={styles.quickCard} onPress={() => { setSelectedProduct(item); addRecentProduct(item); }}>
+                      <Image source={{ uri: item.image }} style={styles.quickCardImage} />
+                      <Text style={styles.quickCardTitle} numberOfLines={1}>{item.name}</Text>
+                      <Text style={[styles.quickCardPrice, { color: primary }]}>R$ {item.price.toFixed(2)}</Text>
+                    </Pressable>
+                  )}
+                />
               </View>
             )}
 
@@ -308,7 +396,7 @@ export default function HomeScreen() {
           return (
             <Pressable
               style={styles.card}
-              onPress={() => { if (!blockCardPress) setSelectedProduct(item); }}>
+              onPress={() => { if (!blockCardPress) { setSelectedProduct(item); addRecentProduct(item); } }}>
               {item.hasOffer && (
                 <View style={[styles.offerBadge, { backgroundColor: primary }]}>
                   <Text style={styles.offerBadgeText}>
@@ -316,6 +404,13 @@ export default function HomeScreen() {
                   </Text>
                 </View>
               )}
+              <Pressable
+                style={[styles.favoriteBtn, isFavoriteProduct(item.id) && { backgroundColor: '#EF4444' }]}
+                onPressIn={() => { blockCardPress = true; }}
+                onPress={() => toggleFavoriteProduct(item)}
+                onPressOut={() => { setTimeout(() => { blockCardPress = false; }, 50); }}>
+                <Ionicons name={isFavoriteProduct(item.id) ? 'heart' : 'heart-outline'} size={14} color="#fff" />
+              </Pressable>
               <Image source={{ uri: item.image }} style={styles.productImage} />
               <View style={styles.cardInfo}>
                 <Text style={styles.productName} numberOfLines={2}>{item.name}</Text>
@@ -484,6 +579,14 @@ export default function HomeScreen() {
                 <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
               </Pressable>
 
+              <Pressable style={styles.sidebarItem} onPress={() => { closeSidebar(); setTimeout(() => router.push('/app/favoritos'), 250); }}>
+                <View style={[styles.sidebarItemIcon, { backgroundColor: '#FEF2F2' }]}>
+                  <Ionicons name="heart-outline" size={20} color="#EF4444" />
+                </View>
+                <Text style={[styles.sidebarItemText, { color: '#111827' }]}>Favoritos</Text>
+                <Ionicons name="chevron-forward" size={16} color="#9CA3AF" />
+              </Pressable>
+
               <Pressable style={styles.sidebarItem} onPress={handleLogout}>
                 <View style={styles.sidebarItemIcon}>
                   <Ionicons name="log-out-outline" size={20} color="#EF4444" />
@@ -511,9 +614,15 @@ export default function HomeScreen() {
         animationType="slide"
         statusBarTranslucent
         onRequestClose={() => setSelectedProduct(null)}>
-        <Pressable style={styles.detailOverlay} onPress={() => setSelectedProduct(null)}>
+        <View style={styles.detailOverlay}>
+          <Pressable style={styles.detailBackdrop} onPress={() => setSelectedProduct(null)} />
           <View style={styles.detailSheet}>
-            <View style={styles.previewHandle} />
+            <View style={styles.detailTopBar}>
+              <View style={styles.previewHandle} />
+              <Pressable style={styles.detailCloseBtn} onPress={() => setSelectedProduct(null)}>
+                <Ionicons name="close" size={18} color="#374151" />
+              </Pressable>
+            </View>
 
             {selectedProduct && (
               <>
@@ -523,13 +632,38 @@ export default function HomeScreen() {
                   contentContainerStyle={styles.detailScrollContent}>
 
                   {/* Imagem */}
-                  {selectedProduct.image ? (
-                    <Image source={{ uri: selectedProduct.image }} style={styles.detailImage} />
-                  ) : (
-                    <View style={[styles.detailImage, { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }]}>
-                      <Ionicons name="cube-outline" size={48} color="#D1D5DB" />
-                    </View>
-                  )}
+                  <View style={styles.detailGalleryRow}>
+                    <Pressable style={styles.detailImageWrap} onPress={() => setFullImageVisible(true)}>
+                      {getProductImages(selectedProduct).length > 0 ? (
+                        <Image
+                          source={{ uri: getProductImages(selectedProduct)[detailImageIndex] }}
+                          style={styles.detailImage}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <View style={[styles.detailImageFallback, { backgroundColor: '#F3F4F6' }]}>
+                          <Ionicons name="cube-outline" size={48} color="#D1D5DB" />
+                          <Text style={styles.detailImageFallbackText}>Sem imagem</Text>
+                        </View>
+                      )}
+                      <View style={styles.detailImageShade} />
+                    </Pressable>
+
+                    {getProductImages(selectedProduct).length > 1 ? (
+                      <View style={styles.detailThumbRail}>
+                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailThumbRailContent}>
+                          {getProductImages(selectedProduct).map((uri, index) => (
+                            <Pressable
+                              key={`${uri}-${index}`}
+                              style={[styles.detailThumb, index === detailImageIndex && styles.detailThumbActive]}
+                              onPress={() => setDetailImageIndex(index)}>
+                              <Image source={{ uri }} style={styles.detailThumbImage} resizeMode="cover" />
+                            </Pressable>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    ) : null}
+                  </View>
 
                   {/* Badge oferta */}
                   {selectedProduct.hasOffer && selectedProduct.offerDetails && (
@@ -633,10 +767,96 @@ export default function HomeScreen() {
               </>
             )}
           </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={!!selectedOffer}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setSelectedOffer(null)}>
+        <View style={styles.detailOverlay}>
+          <Pressable style={styles.detailBackdrop} onPress={() => setSelectedOffer(null)} />
+          <View style={styles.detailSheet}>
+            <View style={styles.detailTopBar}>
+              <View style={styles.previewHandle} />
+              <Pressable style={styles.detailCloseBtn} onPress={() => setSelectedOffer(null)}>
+                <Ionicons name="close" size={18} color="#374151" />
+              </Pressable>
+            </View>
+
+            {selectedOffer && (
+              <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScrollContent}>
+                <View style={styles.offerHero}>
+                  {selectedOffer.bannerImage ? (
+                    <Image source={{ uri: selectedOffer.bannerImage }} style={styles.offerHeroImage} resizeMode="cover" />
+                  ) : (
+                    <View style={[styles.offerHeroImage, { backgroundColor: '#F3F4F6', alignItems: 'center', justifyContent: 'center' }]}>
+                      <Ionicons name="pricetag-outline" size={42} color="#9CA3AF" />
+                    </View>
+                  )}
+                  <View style={[styles.offerHeroBadge, { backgroundColor: primary }]}>
+                    <Text style={styles.offerHeroBadgeText}>
+                      {selectedOffer.discountPercentage ? `-${selectedOffer.discountPercentage}% OFF` : 'Oferta'}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={styles.offerTextBlock}>
+                  <Text style={styles.offerProductName}>{selectedOffer.title}</Text>
+                  <Text style={styles.offerProductTag}>Produto em oferta</Text>
+                  {selectedOffer.description ? (
+                    <Text style={styles.offerDescription}>{selectedOffer.description}</Text>
+                  ) : null}
+                </View>
+
+                <Pressable
+                  style={[styles.offerActionBtn, { backgroundColor: primary }]}
+                  onPress={() => {
+                    const offer = selectedOffer;
+                    if (!offer?.item) {
+                      Alert.alert('Oferta', 'Essa oferta ainda não trouxe um produto para adicionar ao carrinho.');
+                      setSelectedOffer(null);
+                      return;
+                    }
+                    handleAddItem(offer.item);
+                    setSelectedOffer(null);
+                  }}>
+                  <Ionicons name="bag-outline" size={18} color="#fff" />
+                  <Text style={styles.offerActionBtnText}>Adicionar ao carrinho</Text>
+                </Pressable>
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        visible={fullImageVisible}
+        transparent
+        animationType="fade"
+        statusBarTranslucent
+        onRequestClose={() => setFullImageVisible(false)}>
+        <Pressable style={styles.fullImageOverlay} onPress={() => setFullImageVisible(false)}>
+          <Pressable style={styles.fullImageCloseBtn} onPress={() => setFullImageVisible(false)}>
+            <Ionicons name="close" size={20} color="#fff" />
+          </Pressable>
+          <Image
+            source={{ uri: getProductImages(selectedProduct)[detailImageIndex] ?? selectedProduct?.image ?? '' }}
+            style={styles.fullImage}
+            resizeMode="contain"
+          />
         </Pressable>
       </Modal>
     </View>
   );
+}
+
+function getProductImages(product: Product | null) {
+  if (!product) return [];
+  const images = Array.isArray(product.images) ? product.images.filter(Boolean) : [];
+  return images.length > 0 ? images : (product.image ? [product.image] : []);
 }
 
 const styles = StyleSheet.create({
@@ -672,6 +892,7 @@ const styles = StyleSheet.create({
   bannerFallbackText: { fontSize: 15, fontWeight: '700' },
   carousel: { marginTop: 16 },
   carouselSlide: { height: 160, borderRadius: 20, overflow: 'hidden', position: 'relative' },
+  carouselSlidePressed: { opacity: 0.92, transform: [{ scale: 0.99 }] },
   carouselImage: { width: '100%', height: '100%' },
   carouselFallbackText: { fontSize: 15, fontWeight: '700' },
   carouselOverlay: {
@@ -683,9 +904,31 @@ const styles = StyleSheet.create({
   carouselBadge: { alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, marginBottom: 4 },
   carouselBadgeText: { color: '#fff', fontSize: 11, fontWeight: '900' },
   carouselTitle: { fontSize: 15, fontWeight: '900', color: '#fff' },
+  carouselProductName: { fontSize: 12, color: 'rgba(255,255,255,0.92)', fontWeight: '800' },
   carouselDesc: { fontSize: 12, color: 'rgba(255,255,255,0.85)', fontWeight: '500' },
+  carouselCta: { fontSize: 11, color: 'rgba(255,255,255,0.92)', fontWeight: '800', marginTop: 4 },
   dotsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 5, marginTop: 8 },
   dot: { height: 6, borderRadius: 3 },
+
+  // Busca e atalhos
+  searchWrap: { paddingHorizontal: 16, paddingTop: 16 },
+  searchBox: {
+    flexDirection: 'row', alignItems: 'center', gap: 10,
+    backgroundColor: '#fff', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 12,
+    borderWidth: 1, borderColor: '#E5E7EB',
+  },
+  searchInput: { flex: 1, fontSize: 14, color: '#111827' },
+  quickSection: { paddingTop: 16 },
+  quickSectionHeader: { paddingHorizontal: 16, marginBottom: 10 },
+  quickSectionTitle: { fontSize: 15, fontWeight: '800', color: '#071B5A' },
+  quickList: { paddingHorizontal: 16, gap: 10 },
+  quickCard: {
+    width: 124, backgroundColor: '#fff', borderRadius: 16, padding: 10, gap: 6,
+    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+  },
+  quickCardImage: { width: '100%', height: 72, borderRadius: 12, backgroundColor: '#F3F4F6' },
+  quickCardTitle: { fontSize: 12, fontWeight: '700', color: '#111827' },
+  quickCardPrice: { fontSize: 13, fontWeight: '900' },
 
   // Categorias
   categoriesList: { paddingHorizontal: 16, paddingVertical: 14, gap: 8 },
@@ -705,6 +948,11 @@ const styles = StyleSheet.create({
   card: { flex: 1, backgroundColor: '#fff', borderRadius: 18, overflow: 'hidden', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2 },
   offerBadge: { position: 'absolute', top: 8, left: 8, zIndex: 1, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   offerBadgeText: { color: '#fff', fontSize: 11, fontWeight: '800' },
+  favoriteBtn: {
+    position: 'absolute', top: 8, right: 8, zIndex: 2,
+    width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(17,24,39,0.55)',
+    alignItems: 'center', justifyContent: 'center',
+  },
   productImage: { height: 120, backgroundColor: '#F3F4F6' },
   cardInfo: { padding: 10, gap: 3, flex: 1 },
   productName: { fontSize: 13, fontWeight: '700', color: '#111827', lineHeight: 18 },
@@ -775,8 +1023,72 @@ const styles = StyleSheet.create({
 
   // Modal detalhe produto
   detailOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  detailBackdrop: { ...StyleSheet.absoluteFillObject },
   detailSheet: { backgroundColor: '#fff', borderTopLeftRadius: 28, borderTopRightRadius: 28, maxHeight: '90%', overflow: 'hidden', flex: 1 },
-  detailImage: { width: '100%', height: 220 },
+  detailTopBar: { paddingTop: 10, paddingHorizontal: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  offerHero: { borderRadius: 22, overflow: 'hidden', position: 'relative' },
+  offerHeroImage: { width: '100%', height: 200 },
+  offerHeroBadge: {
+    position: 'absolute',
+    left: 12,
+    top: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  offerHeroBadgeText: { color: '#fff', fontSize: 12, fontWeight: '900' },
+  offerTextBlock: { gap: 4 },
+  offerProductName: { fontSize: 20, fontWeight: '900', color: '#071B5A', lineHeight: 26 },
+  offerProductTag: { fontSize: 12, fontWeight: '800', color: '#6B7280' },
+  offerDescription: { fontSize: 14, color: '#374151', lineHeight: 21 },
+  offerActionBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 16,
+    paddingVertical: 15,
+  },
+  offerActionBtnText: { color: '#fff', fontWeight: '900', fontSize: 15 },
+  detailGalleryRow: { flexDirection: 'row', gap: 10, alignItems: 'stretch' },
+  detailImageWrap: {
+    flex: 1,
+    height: 260,
+    borderRadius: 22,
+    overflow: 'hidden',
+    backgroundColor: '#F3F4F6',
+    position: 'relative',
+  },
+  detailImage: { width: '100%', height: '100%' },
+  detailImageShade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 90,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+  },
+  detailImageFallback: {
+    width: '100%',
+    height: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  detailImageFallbackText: { fontSize: 13, color: '#9CA3AF', fontWeight: '600' },
+  detailThumbRail: { width: 66, height: 260 },
+  detailThumbRailContent: { gap: 6, paddingBottom: 6 },
+  detailThumb: {
+    width: 66,
+    height: 58,
+    borderRadius: 14,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    backgroundColor: '#F3F4F6',
+  },
+  detailThumbActive: { borderColor: '#071B5A' },
+  detailThumbImage: { width: '100%', height: '100%' },
   detailOfferBadge: { flexDirection: 'row', alignItems: 'center', gap: 5, alignSelf: 'flex-start', marginHorizontal: 16, marginTop: 16, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   detailOfferBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
   detailScroll: { flex: 1 },
@@ -796,4 +1108,26 @@ const styles = StyleSheet.create({
   detailFooter: { padding: 16, paddingBottom: 36, borderTopWidth: 1, borderTopColor: '#F3F4F6' },
   detailAddBtn: { borderRadius: 16, paddingVertical: 15, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
   detailAddBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },
+  detailCloseBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullImageOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.92)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  fullImageCloseBtn: {
+    position: 'absolute',
+    top: 44,
+    right: 20,
+    zIndex: 2,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  fullImage: { width: '100%', height: '100%' },
 });

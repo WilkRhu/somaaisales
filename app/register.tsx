@@ -6,8 +6,8 @@ import { useState } from 'react';
 import {
   Image,
   KeyboardAvoidingView,
-  Pressable,
   Platform,
+  Pressable,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -141,15 +141,17 @@ export default function RegisterScreen() {
       let avatarBase64: string | null = null;
       if (photo) avatarBase64 = await toBase64(photo);
 
-      await authApi.registerCustomer(tenant.id, {
+      const payload = {
         name: name.trim(),
         email: email.trim(),
         phone: phone.replace(/\D/g, '').replace(/^(\d{2})/, '+$1'),
         cpf: cpf.replace(/\D/g, ''),
         birthDate: isoDate,
-        avatar: avatarBase64,
-        password: ''
-      });
+        password: password.trim(),
+        ...(avatarBase64 ? { avatar: avatarBase64 } : {}),
+      };
+
+      const response = await authApi.registerCustomer(tenant.id, payload);
 
       showModal({
         title: 'Conta criada',
@@ -159,9 +161,11 @@ export default function RegisterScreen() {
         buttons: [{ text: 'Fazer login', onPress: () => router.replace('/login') }],
       });
     } catch (error) {
+      const raw = (error as any)?.response?.data?.message ?? (error as any)?.response?.data?.error;
+      const message = Array.isArray(raw) ? raw.join('\n') : (raw ?? 'Não foi possível criar a conta.');
       showModal({
         title: 'Erro ao cadastrar',
-        message: error instanceof Error ? error.message : 'Não foi possível criar a conta.',
+        message,
         icon: 'alert-circle-outline',
         iconColor: '#EF4444',
       });
@@ -171,7 +175,10 @@ export default function RegisterScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={styles.root} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 24 : 0}>
       <StatusBar barStyle="light-content" backgroundColor={primaryColor} />
 
       <View style={[styles.topSection, { backgroundColor: primaryColor }]}>

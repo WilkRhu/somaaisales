@@ -2,18 +2,20 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 import {
-    DeliveryCartItem,
-    DeliveryEstablishment,
-    DeliveryFeeResponse,
-    DeliveryOrder,
-    DeliveryTrackingEvent,
-    UserAddress
+  DeliveryCartItem,
+  DeliveryEstablishment,
+  DeliveryFeeResponse,
+  DeliveryOrder,
+  DeliveryOrderRating,
+  DeliveryRatingPayload,
+  DeliveryTrackingEvent,
+  UserAddress
 } from '@/types';
 
 const CART_KEY_PREFIX = 'somaai:delivery-cart-';
 
 const client = axios.create({
-  baseURL: 'https://somaaibackend.onrender.com',
+  baseURL: 'http://somaai-alb-1884847772.us-east-1.elb.amazonaws.com',
   timeout: 15000,
 });
 
@@ -67,6 +69,7 @@ export const deliveryApi = {
           name: item.name,
           price: Number(item.offerPrice ?? item.salePrice ?? item.price ?? 0),
           image: item.images?.[0] ?? item.image ?? item.imageUrl ?? '',
+          images: Array.isArray(item.images) ? item.images.filter(Boolean) : item.image ? [item.image] : item.imageUrl ? [item.imageUrl] : [],
           category: item.category ?? 'Geral',
           description: item.description,
           unit: item.unit,
@@ -170,6 +173,20 @@ export const deliveryApi = {
 
   async confirmReceipt(orderId: string): Promise<void> {
     await client.post(`/public/delivery/orders/${orderId}/confirm-receipt`);
+  },
+
+  async getOrderRating(orderId: string): Promise<DeliveryOrderRating | null> {
+    try {
+      const { data } = await client.get(`/delivery/ratings/orders/${orderId}`);
+      return data?.data ?? data ?? null;
+    } catch {
+      return null;
+    }
+  },
+
+  async createOrderRating(orderId: string, payload: DeliveryRatingPayload): Promise<DeliveryOrderRating> {
+    const { data } = await client.post(`/delivery/ratings/orders/${orderId}`, payload);
+    return data?.data ?? data;
   },
 
   // ─── Endereço do usuário ───────────────────────────────────────────────────

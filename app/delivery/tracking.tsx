@@ -70,6 +70,7 @@ export default function DeliveryTrackingScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [cancelModal, setCancelModal] = useState(false);
   const [errorModal, setErrorModal] = useState<string | null>(null);
+  const [existingRating, setExistingRating] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const mapRef = useRef<MapView>(null);
@@ -155,6 +156,12 @@ export default function DeliveryTrackingScreen() {
       ]);
       setOrder(orderData);
       setTrackingEvents(events);
+      if (norm(orderData?.status) === 'DELIVERED') {
+        const rating = await deliveryApi.getOrderRating(orderId);
+        setExistingRating(Boolean(rating));
+      } else {
+        setExistingRating(false);
+      }
     } catch {
       // silently fail
     } finally {
@@ -224,13 +231,14 @@ export default function DeliveryTrackingScreen() {
   const currentStatusIndex = STATUS_ORDER.indexOf(orderStatus);
   const canCancel = ['PENDING', 'CONFIRMED'].includes(orderStatus);
   const canConfirm = orderStatus === 'AWAITING_CONFIRMATION';
+  const canRate = orderStatus === 'DELIVERED' && !existingRating;
 
   return (
     <View style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor={primary} />
 
       <View style={[styles.header, { backgroundColor: primary }]}>
-        <Pressable style={styles.backBtn} onPress={() => router.replace('/delivery/orders')}>
+        <Pressable style={styles.backBtn} onPress={() => router.replace('/app/home')}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
         <View style={styles.headerText}>
@@ -515,6 +523,22 @@ export default function DeliveryTrackingScreen() {
             </Pressable>
           )}
 
+          {canRate && (
+            <Pressable
+              style={[styles.actionBtn, { backgroundColor: primary }]}
+              onPress={() => router.push(`/delivery/rating?orderId=${order.id}`)}>
+              <Ionicons name="star-outline" size={20} color="#fff" />
+              <Text style={styles.actionBtnText}>Avaliar pedido</Text>
+            </Pressable>
+          )}
+
+          {orderStatus === 'DELIVERED' && existingRating && (
+            <View style={styles.ratedBadge}>
+              <Ionicons name="checkmark-circle-outline" size={20} color="#10B981" />
+              <Text style={styles.ratedBadgeText}>Já avaliado</Text>
+            </View>
+          )}
+
           {canCancel && (
             <Pressable
               style={[styles.actionBtn, styles.cancelBtn, actionLoading && styles.btnDisabled]}
@@ -661,6 +685,8 @@ const styles = StyleSheet.create({
   summaryTotalValue: { fontSize: 20, fontWeight: '900' },
 
   actionBtn: { borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8 },
+  ratedBadge: { borderRadius: 16, paddingVertical: 15, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, backgroundColor: '#ECFDF5' },
+  ratedBadgeText: { color: '#047857', fontWeight: '900', fontSize: 16 },
   cancelBtn: { backgroundColor: '#FEF2F2', borderWidth: 1.5, borderColor: '#FECACA' },
   btnDisabled: { opacity: 0.6 },
   actionBtnText: { color: '#fff', fontWeight: '800', fontSize: 16 },

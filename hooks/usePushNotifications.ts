@@ -1,6 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import { useEffect, useRef } from 'react';
 import { Platform } from 'react-native';
+import { router } from 'expo-router';
 
 import { authApi } from '@/services/api';
 import { useAppStore } from '@/store';
@@ -34,6 +35,24 @@ export function usePushNotifications() {
     // Escuta quando o usuário toca na notificação
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
       console.log('[Push] Notificação tocada:', response);
+      const data = response.notification.request.content.data as Record<string, any> | undefined;
+      const orderId = data?.orderId as string | undefined;
+      const route = data?.route as string | undefined;
+      const url = data?.url as string | undefined;
+
+      if (route) {
+        router.push(route as never);
+        return;
+      }
+
+      if (orderId) {
+        router.push(`/delivery/tracking?orderId=${orderId}`);
+        return;
+      }
+
+      if (url) {
+        router.push(url as never);
+      }
     });
 
     return () => {

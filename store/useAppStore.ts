@@ -9,6 +9,8 @@ type AppState = {
   appConsumerConfig: AppConsumerConfig | null;
   authSession: AuthSession | null;
   cartItems: CartItem[];
+  favoriteProductsByScope: Record<string, Product[]>;
+  recentProductsByScope: Record<string, Product[]>;
   loadingTenant: boolean;
   setTenant: (tenant: Tenant | null) => void;
   setAppConsumerConfig: (config: AppConsumerConfig | null) => void;
@@ -18,15 +20,24 @@ type AppState = {
   removeFromCart: (productId: string) => void;
   decrementFromCart: (productId: string) => void;
   clearCart: () => void;
+  toggleFavoriteProduct: (product: Product) => void;
+  isFavoriteProduct: (productId: string) => boolean;
+  addRecentProduct: (product: Product) => void;
 };
+
+function getScopeId(state: Pick<AppState, 'appConsumerConfig' | 'tenant'>) {
+  return state.appConsumerConfig?.establishmentId ?? state.tenant?.id ?? 'default';
+}
 
 export const useAppStore = create<AppState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       tenant: null,
       appConsumerConfig: null,
       authSession: null,
       cartItems: [],
+      favoriteProductsByScope: {},
+      recentProductsByScope: {},
       loadingTenant: true,
       setTenant: (tenant) => set({ tenant }),
       setAppConsumerConfig: (appConsumerConfig) => set({ appConsumerConfig }),
@@ -65,6 +76,36 @@ export const useAppStore = create<AppState>()(
           };
         }),
       clearCart: () => set({ cartItems: [] }),
+      toggleFavoriteProduct: (product) =>
+        set((state) => {
+          const scopeId = getScopeId(state);
+          const current = state.favoriteProductsByScope[scopeId] ?? [];
+          const exists = current.some((item) => item.id === product.id);
+          return {
+            favoriteProductsByScope: {
+              ...state.favoriteProductsByScope,
+              [scopeId]: exists
+                ? current.filter((item) => item.id !== product.id)
+                : [product, ...current].slice(0, 24),
+            },
+          };
+        }),
+      isFavoriteProduct: (productId) => {
+        const scopeId = getScopeId(get());
+        return (get().favoriteProductsByScope[scopeId] ?? []).some((item) => item.id === productId);
+      },
+      addRecentProduct: (product) =>
+        set((state) => {
+          const scopeId = getScopeId(state);
+          const current = state.recentProductsByScope[scopeId] ?? [];
+          const filtered = current.filter((item) => item.id !== product.id);
+          return {
+            recentProductsByScope: {
+              ...state.recentProductsByScope,
+              [scopeId]: [product, ...filtered].slice(0, 12),
+            },
+          };
+        }),
     }),
     {
       name: '@somaai:app-store',
@@ -74,10 +115,22 @@ export const useAppStore = create<AppState>()(
         appConsumerConfig: state.appConsumerConfig,
         authSession: state.authSession,
         cartItems: state.cartItems,
+        favoriteProductsByScope: state.favoriteProductsByScope,
+        recentProductsByScope: state.recentProductsByScope,
       }),
     },
   ),
 );
+
+export const selectFavoriteProducts = (state: AppState) => {
+  const scopeId = getScopeId(state);
+  return state.favoriteProductsByScope[scopeId] ?? [];
+};
+
+export const selectRecentProducts = (state: AppState) => {
+  const scopeId = getScopeId(state);
+  return state.recentProductsByScope[scopeId] ?? [];
+};
 
 export const getCartTotals = (items: CartItem[]) => ({
   totalItems: items.reduce((sum, item) => sum + item.quantity, 0),

@@ -5,6 +5,7 @@ export default function AppLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="home" />
       <Stack.Screen name="catalogo" />
+      <Stack.Screen name="favoritos" />
       <Stack.Screen name="produto/[id]" />
       <Stack.Screen name="carrinho" />
       <Stack.Screen name="checkout" />

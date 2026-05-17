@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
-import { Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Alert, Image, Pressable, ScrollView, StatusBar, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { HeaderWave } from '@/components/HeaderWave';
@@ -13,6 +13,7 @@ export default function CartScreen() {
   const { items, addItem, removeItem, totalItems, totalPrice } = useCart();
   const { tenant } = useTenant();
   const appConsumerConfig = useAppStore((state) => state.appConsumerConfig);
+  const clearCart = useAppStore((state) => state.clearCart);
   const theme = useTheme();
   const insets = useSafeAreaInsets();
 
@@ -20,6 +21,13 @@ export default function CartScreen() {
   const storeName = appConsumerConfig?.establishmentName ?? tenant?.nome ?? 'SomaAI Sales';
 
   const isEmpty = items.length === 0;
+  const handleClearCart = () => {
+    if (isEmpty) return;
+    Alert.alert('Limpar carrinho', 'Tem certeza que deseja remover todos os itens?', [
+      { text: 'Cancelar', style: 'cancel' },
+      { text: 'Limpar', style: 'destructive', onPress: () => clearCart() },
+    ]);
+  };
 
   return (
     <View style={styles.root}>
@@ -114,6 +122,11 @@ export default function CartScreen() {
                 <Text style={[styles.summaryValue, { color: '#10B981' }]}>Grátis</Text>
               </View>
 
+              <Pressable style={styles.clearCartBtn} onPress={handleClearCart}>
+                <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                <Text style={styles.clearCartBtnText}>Limpar carrinho</Text>
+              </Pressable>
+
               <View style={styles.summaryDivider} />
 
               <View style={styles.summaryRow}>
@@ -205,6 +218,18 @@ const styles = StyleSheet.create({
   summaryDivider: { height: 1, backgroundColor: '#F3F4F6' },
   summaryTotal: { fontSize: 16, fontWeight: '800', color: '#071B5A' },
   summaryTotalValue: { fontSize: 20, fontWeight: '900' },
+  clearCartBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    borderRadius: 14,
+    paddingVertical: 12,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  clearCartBtnText: { color: '#EF4444', fontWeight: '800', fontSize: 14 },
 
   // Footer
   footer: {
