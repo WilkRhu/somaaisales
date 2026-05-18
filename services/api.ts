@@ -1,9 +1,10 @@
 import { AppConsumerConfig, AuthSession, NearbyEstablishment, Offer, Product, RegisterCustomerPayload, RegisterCustomerResponse, TenantConfig } from '@/types';
 import { mockTenantConfig } from '@/utils/mockData';
 import axios from 'axios';
+import { API_BASE_URL } from './apiConfig';
 
 const client = axios.create({
-  baseURL: 'https://somaaibackend.onrender.com',
+  baseURL: API_BASE_URL,
   timeout: 10000,
 });
 
@@ -53,6 +54,17 @@ export const authApi = {
   },
 };
 
+function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
 export const tenantApi = {
   async health() {
     const { data } = await client.get('/');
@@ -64,24 +76,33 @@ export const tenantApi = {
         params: { latitude, longitude, radius },
       });
       const list = Array.isArray(data?.data) ? data.data : [];
-      return list.map(
-        (item: any): NearbyEstablishment => ({
-          id: item.id,
-          nome: item.name ?? item.nome ?? 'Estabelecimento',
-          logo: item.logo ?? '',
-          type: item.type ?? item.segment ?? item.businessType ?? item.category,
-          segment: item.segment ?? item.type ?? item.businessType ?? item.category,
-          businessType: item.businessType ?? item.type ?? item.segment ?? item.category,
-          latitude: item.latitude,
-          longitude: item.longitude,
-          address: item.address,
-          city: item.city,
-          state: item.state,
-          description: item.description,
-          isOpen: item.isOpen,
-          isActive: item.isActive,
-          distanceKm: item.distanceKm,
-        }),
+      return list
+        .filter((item: any) => item.deliveryEnabled !== false)
+        .map(
+        (item: any): NearbyEstablishment => {
+          let distance = item.distanceKm;
+          if (distance == null && item.latitude && item.longitude) {
+            distance = haversineKm(latitude, longitude, parseFloat(item.latitude), parseFloat(item.longitude));
+          }
+          return {
+            id: item.id,
+            nome: item.name ?? item.nome ?? 'Estabelecimento',
+            logo: item.logo ?? '',
+            type: item.type ?? item.segment ?? item.businessType ?? item.category,
+            segment: item.segment ?? item.type ?? item.businessType ?? item.category,
+            businessType: item.businessType ?? item.type ?? item.segment ?? item.category,
+            latitude: item.latitude,
+            longitude: item.longitude,
+            address: item.address,
+            city: item.city,
+            state: item.state,
+            zipCode: item.zipCode,
+            description: item.description,
+            isOpen: item.isOpen,
+            isActive: item.isActive,
+            distanceKm: distance,
+          };
+        },
       );
     } catch {
       return [mockTenantConfig('mercado-joao')];

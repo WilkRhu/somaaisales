@@ -1,20 +1,23 @@
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-  Alert,
-  FlatList,
-  Image,
-  KeyboardAvoidingView,
-  Pressable,
-  Platform,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
+    Alert,
+    FlatList,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
+import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Path, Svg } from 'react-native-svg';
 
 import { EmptyState } from '@/components/EmptyState';
@@ -39,6 +42,21 @@ const C = {
 
 const appLogoUrl = 'https://somaaiuploads.s3.us-east-1.amazonaws.com/logomarca/somaaisales.png';
 
+function decodePolyline(encoded: string): { latitude: number; longitude: number }[] {
+  const points: { latitude: number; longitude: number }[] = [];
+  let index = 0, lat = 0, lng = 0;
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lat += result & 1 ? ~(result >> 1) : result >> 1;
+    shift = 0; result = 0;
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5; } while (b >= 0x20);
+    lng += result & 1 ? ~(result >> 1) : result >> 1;
+    points.push({ latitude: lat / 1e5, longitude: lng / 1e5 });
+  }
+  return points;
+}
+
 export default function StoreSelectionScreen() {
   const [loadingLocation, setLoadingLocation] = useState(true);
   const [loadingStores, setLoadingStores] = useState(false);
@@ -48,7 +66,33 @@ export default function StoreSelectionScreen() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('ALL');
   const [stores, setStores] = useState<NearbyEstablishment[]>([]);
+  const [directionsStore, setDirectionsStore] = useState<NearbyEstablishment | null>(null);
+  const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
+  const [routeDuration, setRouteDuration] = useState<string | null>(null);
+  const mapRef = useRef<MapView>(null);
   const { loadTenantByCode } = useTenant();
+
+  // Busca rota a pé quando abre o modal
+  useEffect(() => {
+    if (!directionsStore || latitude == null || longitude == null) {
+      setRouteCoords([]);
+      setRouteDuration(null);
+      return;
+    }
+    const storeLat = parseFloat(directionsStore.latitude!);
+    const storeLng = parseFloat(directionsStore.longitude!);
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${storeLat},${storeLng}&mode=walking&key=${Constants.expoConfig?.extra?.googleMapsApiKey ?? ''}`;
+    fetch(url)
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.routes?.length > 0) {
+          const points = decodePolyline(data.routes[0].overview_polyline.points);
+          setRouteCoords(points);
+          setRouteDuration(data.routes[0].legs?.[0]?.duration?.text ?? null);
+        }
+      })
+      .catch(() => {});
+  }, [directionsStore, latitude, longitude]);
   const setAppConsumerConfig = useAppStore((state) => state.setAppConsumerConfig);
 
   useEffect(() => {
@@ -93,13 +137,10 @@ export default function StoreSelectionScreen() {
 
   const selectStore = async (store: NearbyEstablishment) => {
     try {
-      console.log('[selectStore] iniciando', { storeId: store.id, storeName: store.nome });
       const ok = await loadTenantByCode(store.id);
       if (!ok) throw new Error('Loja não encontrada');
       const appConfig = await tenantApi.getAppConsumerConfig(store.id);
-      console.log('[selectStore] appConfig recebido', appConfig);
       setAppConsumerConfig(appConfig);
-      console.log('[selectStore] appConfig salvo no store', { id: appConfig.id, appColor: appConfig.appColor });
       router.replace('/login');
     } catch (error) {
       console.error('[selectStore] falha', error);
@@ -261,7 +302,7 @@ export default function StoreSelectionScreen() {
               }
             />
           }
-          renderItem={({ item }) => <StoreCard store={item} onPress={() => selectStore(item)} />}
+          renderItem={({ item }) => <StoreCard store={item} onPress={() => selectStore(item)} onDirections={() => setDirectionsStore(item)} />}
         />
       )}
 
@@ -271,16 +312,92 @@ export default function StoreSelectionScreen() {
           {latitude.toFixed(4)}, {longitude.toFixed(4)}
         </Text>
       )}
+
+      {/* Modal "Como chegar" */}
+      <Modal
+        visible={!!directionsStore}
+        transparent
+        animationType="slide"
+        statusBarTranslucent
+        onRequestClose={() => setDirectionsStore(null)}>
+        <View style={styles.mapModalOverlay}>
+          <View style={styles.mapModalSheet}>
+            <View style={styles.mapModalHeader}>
+              <View>
+                <Text style={styles.mapModalTitle}>Como chegar</Text>
+                <Text style={styles.mapModalSubtitle} numberOfLines={1}>{directionsStore?.nome}</Text>
+                {routeDuration && (
+                  <Text style={styles.mapModalDuration}>
+                    <Ionicons name="walk-outline" size={13} color={C.bluePrimary} /> {routeDuration} a pé
+                  </Text>
+                )}
+              </View>
+              <Pressable onPress={() => setDirectionsStore(null)}>
+                <Ionicons name="close" size={24} color="#374151" />
+              </Pressable>
+            </View>
+
+            {directionsStore && latitude != null && longitude != null && (
+              <MapView
+                ref={mapRef}
+                provider={PROVIDER_DEFAULT}
+                style={styles.mapView}
+                initialRegion={{
+                  latitude: (latitude + parseFloat(directionsStore.latitude!)) / 2,
+                  longitude: (longitude + parseFloat(directionsStore.longitude!)) / 2,
+                  latitudeDelta: Math.abs(latitude - parseFloat(directionsStore.latitude!)) * 2.5 + 0.01,
+                  longitudeDelta: Math.abs(longitude - parseFloat(directionsStore.longitude!)) * 2.5 + 0.01,
+                }}>
+                {/* Marcador do cliente (boneco) */}
+                <Marker coordinate={{ latitude, longitude }} title="Você">
+                  <View style={styles.markerCustom}>
+                    <Ionicons name="person" size={20} color="#fff" />
+                  </View>
+                </Marker>
+                {/* Marcador da loja (empresa) */}
+                <Marker
+                  coordinate={{
+                    latitude: parseFloat(directionsStore.latitude!),
+                    longitude: parseFloat(directionsStore.longitude!),
+                  }}
+                  title={directionsStore.nome}>
+                  <View style={[styles.markerCustom, { backgroundColor: '#EF4444' }]}>
+                    <Ionicons name="storefront" size={20} color="#fff" />
+                  </View>
+                </Marker>
+                {/* Rota a pé */}
+                {routeCoords.length > 1 && (
+                  <Polyline
+                    coordinates={routeCoords}
+                    strokeColor={C.bluePrimary}
+                    strokeWidth={4}
+                  />
+                )}
+              </MapView>
+            )}
+
+            <View style={styles.mapModalFooter}>
+              <Ionicons name="location" size={16} color={C.bluePrimary} />
+              <Text style={styles.mapModalAddress} numberOfLines={2}>
+                {directionsStore?.address ?? 'Endereço não informado'}
+                {directionsStore?.city ? ` • ${directionsStore.city}` : ''}
+                {directionsStore?.state ? `/${directionsStore.state}` : ''}
+              </Text>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
 
 // ─── Card de loja ───────────────────────────────────────────────────────────
-function StoreCard({ store, onPress }: { store: NearbyEstablishment; onPress: () => void }) {
+function StoreCard({ store, onPress, onDirections }: { store: NearbyEstablishment; onPress: () => void; onDirections: () => void }) {
   const isOpen = store.isOpen ?? false;
+  const hasCoords = !!store.latitude && !!store.longitude;
 
   return (
-    <Pressable style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} onPress={onPress}>
+    <Pressable style={({ pressed }) => [styles.card, pressed && styles.cardPressed]} onPress={isOpen && store.isActive !== false ? onPress : undefined}>
       {/* Faixa lateral colorida */}
       <View style={[styles.cardAccent, { backgroundColor: isOpen ? C.bluePrimary : C.textMuted }]} />
 
@@ -307,7 +424,7 @@ function StoreCard({ store, onPress }: { store: NearbyEstablishment; onPress: ()
           </View>
         </View>
 
-        {/* Rodapé: distância + botão */}
+        {/* Rodapé: distância + botões */}
         <View style={styles.cardFooter}>
           <View style={styles.distanceBadge}>
             <Ionicons name="location-outline" size={14} color={C.textMuted} />
@@ -315,9 +432,18 @@ function StoreCard({ store, onPress }: { store: NearbyEstablishment; onPress: ()
               {store.distanceKm != null ? `${store.distanceKm.toFixed(1)} km` : 'Distância não informada'}
             </Text>
           </View>
-          <Pressable style={styles.enterButton} onPress={onPress}>
-            <Text style={styles.enterButtonText}>Entrar →</Text>
-          </Pressable>
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            {hasCoords && isOpen && store.isActive !== false && (
+              <Pressable style={styles.directionsButton} onPress={onDirections}>
+                <Ionicons name="navigate-outline" size={16} color={C.bluePrimary} />
+              </Pressable>
+            )}
+            {isOpen && store.isActive !== false && (
+              <Pressable style={styles.enterButton} onPress={onPress}>
+                <Text style={styles.enterButtonText}>Entrar →</Text>
+              </Pressable>
+            )}
+          </View>
         </View>
       </View>
     </Pressable>
@@ -545,5 +671,82 @@ const styles = StyleSheet.create({
     color: '#C4C4C4',
     fontSize: 11,
     paddingBottom: 8,
+  },
+  // Botão como chegar
+  directionsButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: C.bluePrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  // Modal mapa
+  mapModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  mapModalSheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    overflow: 'hidden',
+    maxHeight: '85%',
+  },
+  mapModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  mapModalTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#111827',
+  },
+  mapModalSubtitle: {
+    fontSize: 13,
+    color: '#6B7280',
+    marginTop: 2,
+  },
+  mapView: {
+    width: '100%',
+    height: 350,
+  },
+  mapModalFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  mapModalAddress: {
+    flex: 1,
+    fontSize: 13,
+    color: '#374151',
+  },
+  mapModalDuration: {
+    fontSize: 13,
+    color: C.bluePrimary,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  markerCustom: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: C.bluePrimary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 4,
   },
 });

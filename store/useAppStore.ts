@@ -16,9 +16,10 @@ type AppState = {
   setAppConsumerConfig: (config: AppConsumerConfig | null) => void;
   setAuthSession: (session: AuthSession | null) => void;
   setLoadingTenant: (loading: boolean) => void;
-  addToCart: (product: Product) => void;
+  addToCart: (product: Product, quantity?: number) => void;
   removeFromCart: (productId: string) => void;
   decrementFromCart: (productId: string) => void;
+  updateCartQuantity: (productId: string, quantity: number) => void;
   clearCart: () => void;
   toggleFavoriteProduct: (product: Product) => void;
   isFavoriteProduct: (productId: string) => boolean;
@@ -43,20 +44,21 @@ export const useAppStore = create<AppState>()(
       setAppConsumerConfig: (appConsumerConfig) => set({ appConsumerConfig }),
       setAuthSession: (authSession) => set({ authSession }),
       setLoadingTenant: (loading) => set({ loadingTenant: loading }),
-      addToCart: (product) =>
+      addToCart: (product, quantity) =>
         set((state) => {
+          const qty = quantity ?? 1;
           const existing = state.cartItems.find((item) => item.product.id === product.id);
           if (existing) {
             return {
               cartItems: state.cartItems.map((item) =>
                 item.product.id === product.id
-                  ? { ...item, quantity: item.quantity + 1 }
+                  ? { ...item, quantity: item.quantity + qty }
                   : item,
               ),
             };
           }
 
-          return { cartItems: [...state.cartItems, { product, quantity: 1 }] };
+          return { cartItems: [...state.cartItems, { product, quantity: qty }] };
         }),
       removeFromCart: (productId) =>
         set((state) => ({
@@ -66,12 +68,25 @@ export const useAppStore = create<AppState>()(
         set((state) => {
           const existing = state.cartItems.find((item) => item.product.id === productId);
           if (!existing) return state;
-          if (existing.quantity <= 1) {
+          const step = existing.product.unit ? 0.1 : 1;
+          const newQty = Math.round((existing.quantity - step) * 100) / 100;
+          if (newQty <= 0) {
             return { cartItems: state.cartItems.filter((item) => item.product.id !== productId) };
           }
           return {
             cartItems: state.cartItems.map((item) =>
-              item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item,
+              item.product.id === productId ? { ...item, quantity: newQty } : item,
+            ),
+          };
+        }),
+      updateCartQuantity: (productId, quantity) =>
+        set((state) => {
+          if (quantity <= 0) {
+            return { cartItems: state.cartItems.filter((item) => item.product.id !== productId) };
+          }
+          return {
+            cartItems: state.cartItems.map((item) =>
+              item.product.id === productId ? { ...item, quantity } : item,
             ),
           };
         }),

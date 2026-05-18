@@ -34,6 +34,7 @@ export type NearbyEstablishment = {
   address?: string | null;
   city?: string | null;
   state?: string | null;
+  zipCode?: string | null;
   description?: string | null;
   isOpen?: boolean;
   isActive?: boolean;

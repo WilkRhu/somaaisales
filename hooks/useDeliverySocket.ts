@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { API_BASE_URL } from '@/services/apiConfig';
 
-const BACKEND_URL = 'https://somaaibackend.onrender.com';
+const BACKEND_URL = API_BASE_URL;
 
 export type DriverLocation = {
   latitude: number;

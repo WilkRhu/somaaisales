@@ -2,25 +2,26 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Animated,
-  FlatList,
-  Image,
-  Modal,
-  Alert,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View
+    ActivityIndicator,
+    Alert,
+    Animated,
+    FlatList,
+    Image,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Path, Svg } from 'react-native-svg';
 
+import { WeightQuantityModal } from '@/components/WeightQuantityModal';
 import { useCart } from '@/contexts/CartContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useTheme } from '@/contexts/ThemeContext';
@@ -56,6 +57,8 @@ export default function HomeScreen() {
   const [selectedOffer, setSelectedOffer] = useState<(typeof offers)[number] | null>(null);
   const [detailImageIndex, setDetailImageIndex] = useState(0);
   const [fullImageVisible, setFullImageVisible] = useState(false);
+  const [weightModalVisible, setWeightModalVisible] = useState(false);
+  const [weightProduct, setWeightProduct] = useState<Product | null>(null);
 
   const toastOpacity = useRef(new Animated.Value(0)).current;
   const toastTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -83,8 +86,10 @@ export default function HomeScreen() {
     isRefresh ? setRefreshing(true) : setLoading(true);
     tenantApi
       .getEstablishmentWithInventory(establishmentId)
-      .then(setProducts)
-      .catch(() => setProducts([]))
+      .then((data) => {
+        setProducts(data);
+      })
+      .catch(() => { setProducts([]); })
       .finally(() => { setLoading(false); setRefreshing(false); });
     if (isRefresh) fetchOffers(establishmentId, true, authSession?.accessToken);
   };
@@ -121,7 +126,20 @@ export default function HomeScreen() {
     toastTimeout.current = setTimeout(() => setToastProduct(null), 2400);
   };
 
-  const handleAddItem = (item: Product) => { addItem(item); showToast(item.name); };
+  const handleAddItem = (item: Product) => {
+    if (item.unit && ['kg', 'g', 'l'].includes(item.unit.toLowerCase())) {
+      setWeightProduct(item);
+      setWeightModalVisible(true);
+      return;
+    }
+    addItem(item);
+    showToast(item.name);
+  };
+
+  const handleWeightConfirm = (product: Product, quantity: number) => {
+    addItem(product, quantity);
+    showToast(product.name);
+  };
 
   const openSidebar = () => {
     setSidebarVisible(true);
@@ -461,6 +479,14 @@ export default function HomeScreen() {
           <Text style={styles.toastText} numberOfLines={1}>{toastProduct} adicionado</Text>
         </Animated.View>
       )}
+
+      {/* Modal quantidade por peso/volume */}
+      <WeightQuantityModal
+        visible={weightModalVisible}
+        product={weightProduct}
+        onConfirm={handleWeightConfirm}
+        onClose={() => setWeightModalVisible(false)}
+      />
 
       {/* Barra flutuante */}
       {totalItems > 0 && (

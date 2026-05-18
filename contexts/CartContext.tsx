@@ -4,7 +4,7 @@ import { createContext, PropsWithChildren, useContext, useMemo } from 'react';
 
 type CartContextValue = {
   items: CartItem[];
-  addItem: (product: Product) => void;
+  addItem: (product: Product, quantity?: number) => void;
   removeItem: (id: string) => void;
   decrementItem: (id: string) => void;
   totalItems: number;

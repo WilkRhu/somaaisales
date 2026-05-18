@@ -102,7 +102,9 @@ export default function DeliveryOrdersScreen() {
   const handleReorder = async (order: DeliveryOrder) => {
     try {
       const fullOrder = await deliveryApi.getOrderById(order.id);
+      console.log('[DeliveryOrders][Reorder] Pedido completo:', fullOrder);
       const items = extractReorderItems(fullOrder);
+      console.log('[DeliveryOrders][Reorder] Itens extraídos:', items);
 
       if (items.length === 0) {
         Alert.alert('Pedir novamente', 'Não encontramos os itens deste pedido.');
@@ -115,7 +117,7 @@ export default function DeliveryOrdersScreen() {
           id: item.itemId,
           name: item.productName,
           price: item.unitPrice,
-          image: '',
+          image: item.image,
           category: 'Recompra',
         };
         for (let i = 0; i < item.quantity; i += 1) {
@@ -314,6 +316,7 @@ function extractReorderItems(order: any) {
         productName: item.productName ?? item.name ?? item.product?.name ?? 'Produto',
         unitPrice: parseMoney(item.unitPrice ?? item.price ?? item.product?.price ?? 0),
         quantity: parseQuantity(item.quantity ?? 1),
+        image: Array.isArray(item.images) ? item.images.find(Boolean) ?? '' : item.image ?? item.product?.image ?? '',
       }))
       .filter((item) => item.itemId);
   }

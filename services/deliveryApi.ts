@@ -11,9 +11,10 @@ import {
   DeliveryTrackingEvent,
   UserAddress
 } from '@/types';
+import { API_BASE_URL } from './apiConfig';
 
 const CART_KEY_PREFIX = 'somaai:delivery-cart-';
-export const DELIVERY_BASE_URL = 'https://api.somaaibusiness.com.br';
+export const DELIVERY_BASE_URL = API_BASE_URL;
 
 const client = axios.create({
   baseURL: DELIVERY_BASE_URL,
@@ -24,10 +25,8 @@ const client = axios.create({
 export function setDeliveryAuthToken(token: string | null) {
   if (token) {
     client.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    console.log('[deliveryApi] Authorization definido:', `Bearer ${token.slice(0, 12)}...`);
   } else {
     delete client.defaults.headers.common['Authorization'];
-    console.log('[deliveryApi] Authorization removido');
   }
 }
 

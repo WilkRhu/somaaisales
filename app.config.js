@@ -75,5 +75,8 @@ export default {
       typedRoutes: true,
       reactCompiler: true,
     },
+    extra: {
+      googleMapsApiKey,
+    },
   },
 };

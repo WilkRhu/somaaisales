@@ -80,10 +80,9 @@ export default function ProfileScreen() {
 
     const loadDefaultAddress = async () => {
       try {
-        const address = await deliveryApi.getDefaultAddress();
-        console.log('[ProfileScreen] endereço padrão ao abrir a página:', address);
-      } catch (error) {
-        console.log('[ProfileScreen] falha ao buscar endereço padrão:', error);
+        await deliveryApi.getDefaultAddress();
+      } catch {
+        // ignora erro ao carregar o endereço padrão
       }
     };
 
@@ -340,38 +339,35 @@ export default function ProfileScreen() {
         <Pressable style={styles.backBtn} onPress={() => router.back()}>
           <Ionicons name="arrow-back" size={22} color="#fff" />
         </Pressable>
-        <Text style={styles.headerTitle}>Meu perfil</Text>
-        <Pressable style={styles.logoutBtn} onPress={handleLogout}>
-          <Ionicons name="log-out-outline" size={22} color="#fff" />
-        </Pressable>
+        <View style={styles.headerContent}>
+          <View style={styles.headerAvatarWrap}>
+            {user?.avatar ? (
+              <AppImage source={{ uri: user.avatar }} style={styles.headerAvatarImage} />
+            ) : (
+              <View style={styles.headerAvatarFallback}>
+                <Text style={styles.headerAvatarInitials}>{initials}</Text>
+              </View>
+            )}
+          </View>
+          <View style={styles.headerTextBlock}>
+            <Text style={styles.headerTitle}>Meu perfil</Text>
+            <Text style={styles.headerName}>{user?.name ?? 'Cliente'}</Text>
+            <Text style={styles.headerEmail}>{user?.email ?? '—'}</Text>
+            {user?.phone ? <Text style={styles.headerPhone}>{user.phone}</Text> : null}
+          </View>
+        </View>
+        <View style={styles.headerActions}>
+          <Pressable style={styles.editProfileBtn} onPress={() => setEditProfileModal(true)}>
+            <Ionicons name="pencil-outline" size={18} color="#fff" />
+          </Pressable>
+          <Pressable style={styles.logoutBtn} onPress={handleLogout}>
+            <Ionicons name="log-out-outline" size={22} color="#fff" />
+          </Pressable>
+        </View>
       </View>
       <HeaderWave color={primary} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-
-        {/* Card do usuário */}
-        <View style={[styles.userCard, { backgroundColor: primary }]}>
-          <Pressable style={styles.avatarWrap} onPress={() => setEditProfileModal(true)}>
-            {user?.avatar ? (
-              <AppImage source={{ uri: user.avatar }} style={styles.avatarImage} />
-            ) : (
-              <View style={[styles.avatar, { backgroundColor: 'rgba(255,255,255,0.25)' }]}>
-                <Text style={styles.avatarInitials}>{initials}</Text>
-              </View>
-            )}
-            <View style={styles.avatarEditBadge}>
-              <Ionicons name="camera" size={11} color="#fff" />
-            </View>
-          </Pressable>
-          <View style={styles.userInfo}>
-            <Text style={styles.userName}>{user?.name ?? '—'}</Text>
-            <Text style={styles.userEmail}>{user?.email ?? '—'}</Text>
-            {user?.phone ? <Text style={styles.userPhone}>{user.phone}</Text> : null}
-          </View>
-          <Pressable style={styles.editProfileBtn} onPress={() => setEditProfileModal(true)}>
-            <Ionicons name="pencil-outline" size={18} color="#fff" />
-          </Pressable>
-        </View>
 
         {/* Dados pessoais */}
         <View style={styles.section}>
@@ -625,39 +621,30 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: '#F5F5F5' },
 
   header: {
-    paddingTop: 64, paddingBottom: 26, paddingHorizontal: 16,
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    paddingTop: 64, paddingBottom: 18, paddingHorizontal: 16,
+    flexDirection: 'row', alignItems: 'flex-start', gap: 12,
   },
   backBtn: { padding: 4 },
-  headerTitle: { flex: 1, fontSize: 18, fontWeight: '900', color: '#fff' },
+  headerContent: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12, minWidth: 0 },
+  headerAvatarWrap: { width: 56, height: 56, borderRadius: 28, overflow: 'hidden' },
+  headerAvatarImage: { width: 56, height: 56, borderRadius: 28, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)' },
+  headerAvatarFallback: {
+    width: 56, height: 56, borderRadius: 28,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.18)',
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.28)',
+  },
+  headerAvatarInitials: { fontSize: 18, fontWeight: '900', color: '#fff' },
+  headerTextBlock: { flex: 1, gap: 2, minWidth: 0 },
+  headerTitle: { fontSize: 12, fontWeight: '800', color: 'rgba(255,255,255,0.78)', textTransform: 'uppercase', letterSpacing: 0.6 },
+  headerName: { fontSize: 18, fontWeight: '900', color: '#fff' },
+  headerEmail: { fontSize: 12, color: 'rgba(255,255,255,0.82)', fontWeight: '500' },
+  headerPhone: { fontSize: 12, color: 'rgba(255,255,255,0.72)', fontWeight: '500' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   logoutBtn: { padding: 4 },
 
   scroll: { flex: 1 },
   scrollContent: { gap: 16, paddingBottom: 40 },
-
-  // Card usuário
-  userCard: {
-    flexDirection: 'row', alignItems: 'center', gap: 16,
-    padding: 20, paddingTop: 16,
-  },
-  avatarWrap: { position: 'relative' },
-  avatar: {
-    width: 60, height: 60, borderRadius: 30,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  avatarImage: { width: 60, height: 60, borderRadius: 30, borderWidth: 2, borderColor: 'rgba(255,255,255,0.4)' },
-  avatarInitials: { fontSize: 22, fontWeight: '900', color: '#fff' },
-  avatarEditBadge: {
-    position: 'absolute', bottom: 0, right: 0,
-    width: 20, height: 20, borderRadius: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    alignItems: 'center', justifyContent: 'center',
-    borderWidth: 1.5, borderColor: '#fff',
-  },
-  userInfo: { flex: 1, gap: 3 },
-  userName: { fontSize: 18, fontWeight: '900', color: '#fff' },
-  userEmail: { fontSize: 13, color: 'rgba(255,255,255,0.75)', fontWeight: '500' },
-  userPhone: { fontSize: 13, color: 'rgba(255,255,255,0.65)', fontWeight: '500' },
 
   // Avatar picker no modal
   avatarPickerWrap: { alignItems: 'center', gap: 8, paddingVertical: 8 },
