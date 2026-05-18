@@ -2,21 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator,
-    Alert,
-    Animated,
-    FlatList,
-    Image,
-    Modal,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    useWindowDimensions,
-    View
+  ActivityIndicator,
+  Alert,
+  Animated,
+  FlatList,
+  Image,
+  Modal,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  useWindowDimensions,
+  View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Path, Svg } from 'react-native-svg';
@@ -36,6 +36,7 @@ export default function HomeScreen() {
   const { tenant } = useTenant();
   const { totalItems, addItem, items, removeItem, decrementItem } = useCart();
   const appConsumerConfig = useAppStore((s) => s.appConsumerConfig);
+  const setAppConsumerConfig = useAppStore((s) => s.setAppConsumerConfig);
   const authSession = useAppStore((s) => s.authSession);
   const setAuthSession = useAppStore((s) => s.setAuthSession);
   const clearCart = useAppStore((s) => s.clearCart);
@@ -54,9 +55,19 @@ export default function HomeScreen() {
   const [cartPreviewVisible, setCartPreviewVisible] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [selectedColor, setSelectedColor] = useState<string | null>(null);
+  const [selectedSize, setSelectedSize] = useState<string | null>(null);
+  useEffect(() => {
+    if (selectedProduct) {
+      setSelectedColor(null);
+      setSelectedSize(null);
+    }
+  }, [selectedProduct]);
   const [selectedOffer, setSelectedOffer] = useState<(typeof offers)[number] | null>(null);
   const [detailImageIndex, setDetailImageIndex] = useState(0);
   const [fullImageVisible, setFullImageVisible] = useState(false);
+  const fullImageScale = useRef(new Animated.Value(0.7)).current;
+  const fullImageOpacity = useRef(new Animated.Value(0)).current;
   const [weightModalVisible, setWeightModalVisible] = useState(false);
   const [weightProduct, setWeightProduct] = useState<Product | null>(null);
 
@@ -86,8 +97,11 @@ export default function HomeScreen() {
     isRefresh ? setRefreshing(true) : setLoading(true);
     tenantApi
       .getEstablishmentWithInventory(establishmentId)
-      .then((data) => {
-        setProducts(data);
+      .then(({ products, establishmentType }) => {
+        setProducts(products);
+        if (establishmentType && appConsumerConfig) {
+          setAppConsumerConfig({ ...appConsumerConfig, establishmentType });
+        }
       })
       .catch(() => { setProducts([]); })
       .finally(() => { setLoading(false); setRefreshing(false); });
@@ -657,41 +671,146 @@ export default function HomeScreen() {
                   style={styles.detailScroll}
                   contentContainerStyle={styles.detailScrollContent}>
 
-                  {/* Imagem */}
-                  <View style={styles.detailGalleryRow}>
-                    <Pressable style={styles.detailImageWrap} onPress={() => setFullImageVisible(true)}>
-                      {getProductImages(selectedProduct).length > 0 ? (
-                        <Image
-                          source={{ uri: getProductImages(selectedProduct)[detailImageIndex] }}
-                          style={styles.detailImage}
-                          resizeMode="cover"
-                        />
-                      ) : (
-                        <View style={[styles.detailImageFallback, { backgroundColor: '#F3F4F6' }]}>
-                          <Ionicons name="cube-outline" size={48} color="#D1D5DB" />
-                          <Text style={styles.detailImageFallbackText}>Sem imagem</Text>
-                        </View>
-                      )}
-                      <View style={styles.detailImageShade} />
-                    </Pressable>
+                  {/* Imagem - filtra por cor se selecionada */}
+                  {(() => {
+                    const allImages = getProductImages(selectedProduct);
+                    const meta = appConsumerConfig?.establishmentType === 'Loja de Roupas' ? parseProductMetadata(selectedProduct) : null;
+                    const filteredImages = (selectedColor && meta?.colorImages?.[selectedColor])
+                      ? meta.colorImages[selectedColor].map((i) => allImages[i]).filter(Boolean)
+                      : allImages;
+                    const safeIndex = detailImageIndex < filteredImages.length ? detailImageIndex : 0;
 
-                    {getProductImages(selectedProduct).length > 1 ? (
-                      <View style={styles.detailThumbRail}>
-                        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailThumbRailContent}>
-                          {getProductImages(selectedProduct).map((uri, index) => (
-                            <Pressable
-                              key={`${uri}-${index}`}
-                              style={[styles.detailThumb, index === detailImageIndex && styles.detailThumbActive]}
-                              onPress={() => setDetailImageIndex(index)}>
-                              <Image source={{ uri }} style={styles.detailThumbImage} resizeMode="cover" />
-                            </Pressable>
-                          ))}
-                        </ScrollView>
+                    return (
+                      <View>
+                        <Text style={styles.detailName}>{selectedProduct.name}</Text>
+                        <Pressable style={styles.detailImageWrap} onPress={() => {
+                          fullImageScale.setValue(0.7);
+                          fullImageOpacity.setValue(0);
+                          setFullImageVisible(true);
+                          Animated.parallel([
+                            Animated.spring(fullImageScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 8 }),
+                            Animated.timing(fullImageOpacity, { toValue: 1, duration: 200, useNativeDriver: true }),
+                          ]).start();
+                        }}>
+                          {filteredImages.length > 0 ? (
+                            <Image
+                              source={{ uri: filteredImages[safeIndex] }}
+                              style={styles.detailImage}
+                              resizeMode="contain"
+                            />
+                          ) : (
+                            <View style={[styles.detailImageFallback, { backgroundColor: '#F3F4F6' }]}>
+                              <Ionicons name="cube-outline" size={48} color="#D1D5DB" />
+                              <Text style={styles.detailImageFallbackText}>Sem imagem</Text>
+                            </View>
+                          )}
+                          <View style={styles.detailImageShade} />
+                        </Pressable>
+
+                        {filteredImages.length > 1 ? (
+                          <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.detailThumbRow}>
+                            {filteredImages.map((uri, index) => (
+                              <Pressable
+                                key={`${uri}-${index}`}
+                                style={[styles.detailThumb, index === safeIndex && styles.detailThumbActive]}
+                                onPress={() => setDetailImageIndex(index)}>
+                                <Image source={{ uri }} style={styles.detailThumbImage} resizeMode="cover" />
+                              </Pressable>
+                            ))}
+                          </ScrollView>
+                        ) : null}
+
+                        {/* Cor + Tamanho - Loja de Roupas */}
+                        {appConsumerConfig?.establishmentType === 'Loja de Roupas' && (() => {
+                          const meta = parseProductMetadata(selectedProduct);
+                          if (!meta) return null;
+                          return (
+                            <View style={{ paddingHorizontal: 16, gap: 12 }}>
+                              {/* Cor + Tamanho lado a lado (wrap se não couber) */}
+                              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 16 }}>
+                                {/* Cor - bolinhas coloridas */}
+                                {meta.color && meta.color.length > 0 && (
+                                  <View style={{ minWidth: 100 }}>
+                                    <Text style={styles.detailSectionTitle}>
+                                      Cor{selectedColor ? `: ${selectedColor}` : ''}
+                                    </Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 6 }}>
+                                      <Pressable
+                                        onPress={() => {
+                                          setSelectedColor(null);
+                                          setDetailImageIndex(0);
+                                        }}
+                                        style={[
+                                          styles.colorDot,
+                                          { backgroundColor: '#F3F4F6', borderColor: !selectedColor ? primary : '#E5E7EB', borderWidth: !selectedColor ? 3 : 2, alignItems: 'center', justifyContent: 'center' },
+                                        ]}>
+                                        <Ionicons name="close" size={14} color="#9CA3AF" />
+                                      </Pressable>
+                                      {meta.color.map((c) => (
+                                        <Pressable
+                                          key={c}
+                                          onPress={() => {
+                                            setSelectedColor(selectedColor === c ? null : c);
+                                            setDetailImageIndex(0);
+                                          }}
+                                          style={[
+                                            styles.colorDot,
+                                            { backgroundColor: getColorHex(c) },
+                                            selectedColor === c && { borderColor: primary, borderWidth: 3 },
+                                          ]}
+                                        />
+                                      ))}
+                                    </View>
+                                  </View>
+                                )}
+
+                                {/* Tamanho */}
+                                {meta.size && meta.size.length > 0 && (
+                                  <View style={{ minWidth: 100 }}>
+                                    <Text style={styles.detailSectionTitle}>Tamanho</Text>
+                                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 6 }}>
+                                      {meta.size.map((s) => (
+                                        <Pressable
+                                          key={s}
+                                          onPress={() => setSelectedSize(selectedSize === s ? null : s)}
+                                          style={[
+                                            styles.metaChip,
+                                            selectedSize === s && { backgroundColor: primary, borderColor: primary },
+                                          ]}>
+                                          <Text style={[styles.metaChipText, selectedSize === s && { color: '#fff' }]}>{s}</Text>
+                                        </Pressable>
+                                      ))}
+                                    </View>
+                                  </View>
+                                )}
+                              </View>
+
+                              {/* Material + Gênero */}
+                              {(meta.material || meta.gender) && (
+                                <View style={{ flexDirection: 'row', gap: 16 }}>
+                                  {meta.material && (
+                                    <View style={{ gap: 2 }}>
+                                      <Text style={styles.detailSectionTitle}>Material</Text>
+                                      <Text style={styles.detailDescription}>{meta.material}</Text>
+                                    </View>
+                                  )}
+                                  {meta.gender && (
+                                    <View style={{ gap: 2 }}>
+                                      <Text style={styles.detailSectionTitle}>Gênero</Text>
+                                      <Text style={styles.detailDescription}>{meta.gender}</Text>
+                                    </View>
+                                  )}
+                                </View>
+                              )}
+                            </View>
+                          );
+                        })()}
                       </View>
-                    ) : null}
-                  </View>
-
-                  {/* Badge oferta */}
+                    );
+                  })()}
                   {selectedProduct.hasOffer && selectedProduct.offerDetails && (
                     <View style={[styles.detailOfferBadge, { backgroundColor: primary }]}>
                       <Ionicons name="pricetag-outline" size={12} color="#fff" />
@@ -703,9 +822,8 @@ export default function HomeScreen() {
                     </View>
                   )}
 
-                  {/* Nome + preço */}
+                  {/* Preço */}
                   <View style={styles.detailHeader}>
-                    <Text style={styles.detailName}>{selectedProduct.name}</Text>
                     <View style={styles.detailPriceBlock}>
                       {selectedProduct.hasOffer && selectedProduct.offerDetails && (
                         <Text style={styles.detailOriginalPrice}>
@@ -725,11 +843,13 @@ export default function HomeScreen() {
                   {selectedProduct.description ? (
                     <View style={styles.detailSection}>
                       <Text style={styles.detailSectionTitle}>Descrição</Text>
-                      <Text style={styles.detailDescription}>{selectedProduct.description}</Text>
+                      <Text style={styles.detailDescription}>
+                        {selectedProduct.description.replace(/---metadata:\s*\{[\s\S]*\}\s*$/, '').trim()}
+                      </Text>
                     </View>
                   ) : null}
 
-                  {/* Categoria + estoque */}
+                  {/* Badge oferta */}
                   <View style={styles.detailMeta}>
                     {selectedProduct.category ? (
                       <View style={styles.detailMetaChip}>
@@ -778,17 +898,32 @@ export default function HomeScreen() {
                     <View style={[styles.detailAddBtn, { backgroundColor: '#E5E7EB' }]}>
                       <Text style={[styles.detailAddBtnText, { color: '#9CA3AF' }]}>Sem estoque</Text>
                     </View>
-                  ) : (
-                    <Pressable
-                      style={[styles.detailAddBtn, { backgroundColor: primary }]}
-                      onPress={() => {
-                        handleAddItem(selectedProduct);
-                        setSelectedProduct(null);
-                      }}>
-                      <Ionicons name="bag-add-outline" size={20} color="#fff" />
-                      <Text style={styles.detailAddBtnText}>Adicionar ao carrinho</Text>
-                    </Pressable>
-                  )}
+                  ) : (() => {
+                    const meta = appConsumerConfig?.establishmentType === 'Loja de Roupas' ? parseProductMetadata(selectedProduct) : null;
+                    const needsVariant = meta && (meta.color?.length || meta.size?.length);
+                    const variantReady = !needsVariant || (
+                      (!meta?.color?.length || selectedColor) && (!meta?.size?.length || selectedSize)
+                    );
+
+                    return (
+                      <Pressable
+                        style={[styles.detailAddBtn, { backgroundColor: variantReady ? primary : '#D1D5DB' }]}
+                        disabled={!variantReady}
+                        onPress={() => {
+                          if (!variantReady) return;
+                          const variant = needsVariant
+                            ? `${selectedColor ?? ''}${selectedColor && selectedSize ? ' • ' : ''}${selectedSize ?? ''}`
+                            : undefined;
+                          handleAddItem({ ...selectedProduct, name: variant ? `${selectedProduct.name} (${variant})` : selectedProduct.name });
+                          setSelectedProduct(null);
+                        }}>
+                        <Ionicons name="bag-add-outline" size={20} color="#fff" />
+                        <Text style={styles.detailAddBtnText}>
+                          {!variantReady ? 'Selecione cor e tamanho' : 'Adicionar ao carrinho'}
+                        </Text>
+                      </Pressable>
+                    );
+                  })()}
                 </View>
               </>
             )}
@@ -861,19 +996,29 @@ export default function HomeScreen() {
       <Modal
         visible={fullImageVisible}
         transparent
-        animationType="fade"
+        animationType="none"
         statusBarTranslucent
         onRequestClose={() => setFullImageVisible(false)}>
-        <Pressable style={styles.fullImageOverlay} onPress={() => setFullImageVisible(false)}>
+        <Animated.View style={[styles.fullImageOverlay, { opacity: fullImageOpacity }]}>
           <Pressable style={styles.fullImageCloseBtn} onPress={() => setFullImageVisible(false)}>
             <Ionicons name="close" size={20} color="#fff" />
           </Pressable>
-          <Image
-            source={{ uri: getProductImages(selectedProduct)[detailImageIndex] ?? selectedProduct?.image ?? '' }}
-            style={styles.fullImage}
-            resizeMode="contain"
-          />
-        </Pressable>
+          <Animated.View style={{ flex: 1, transform: [{ scale: fullImageScale }] }}>
+            <ScrollView
+              maximumZoomScale={4}
+              minimumZoomScale={1}
+              centerContent
+              showsHorizontalScrollIndicator={false}
+              showsVerticalScrollIndicator={false}
+              contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <Image
+                source={{ uri: getProductImages(selectedProduct)[detailImageIndex] ?? selectedProduct?.image ?? '' }}
+                style={{ width: screenWidth, height: screenWidth * 1.2 }}
+                resizeMode="contain"
+              />
+            </ScrollView>
+          </Animated.View>
+        </Animated.View>
       </Modal>
     </View>
   );
@@ -883,6 +1028,93 @@ function getProductImages(product: Product | null) {
   if (!product) return [];
   const images = Array.isArray(product.images) ? product.images.filter(Boolean) : [];
   return images.length > 0 ? images : (product.image ? [product.image] : []);
+}
+
+type ProductMetadata = {
+  size?: string[];
+  color?: string[];
+  material?: string;
+  gender?: string;
+  colorImages?: Record<string, number[]>;
+};
+
+function parseProductMetadata(product: Product | null): ProductMetadata | null {
+  // Tenta campo metadata direto
+  let raw: any = null;
+  if (product?.metadata) {
+    try {
+      raw = typeof product.metadata === 'string' ? JSON.parse(product.metadata) : product.metadata;
+    } catch { /* ignore */ }
+  }
+  // Tenta extrair de dentro da description (formato: ---metadata:{...})
+  if (!raw && product?.description) {
+    const match = product.description.match(/---metadata:\s*(\{[\s\S]*\})\s*$/);
+    if (match) {
+      try {
+        raw = JSON.parse(match[1]);
+      } catch {
+        // Tenta limpar aspas escapadas
+        try {
+          const cleaned = match[1].replace(/\\"/g, '"');
+          raw = JSON.parse(cleaned);
+        } catch { /* ignore */ }
+      }
+    }
+  }
+  if (!raw) return null;
+  try {
+    let colorImages: Record<string, number[]> | undefined;
+    if (raw.colorImages) {
+      if (typeof raw.colorImages === 'string') {
+        try {
+          colorImages = JSON.parse(raw.colorImages);
+        } catch {
+          // Tenta limpar aspas escapadas
+          try {
+            colorImages = JSON.parse(raw.colorImages.replace(/\\"/g, '"'));
+          } catch { /* ignore */ }
+        }
+      } else {
+        colorImages = raw.colorImages;
+      }
+    }
+    return {
+      size: raw.size ? String(raw.size).split(',').map((s: string) => s.trim()).filter(Boolean) : undefined,
+      color: raw.color ? String(raw.color).split(',').map((s: string) => s.trim()).filter(Boolean) : undefined,
+      material: raw.material || undefined,
+      gender: raw.gender || undefined,
+      colorImages,
+    };
+  } catch {
+    return null;
+  }
+}
+
+const COLOR_MAP: Record<string, string> = {
+  preto: '#1a1a1a',
+  cinza: '#9CA3AF',
+  marrom: '#8B4513',
+  nude: '#E8C4A2',
+  branco: '#FFFFFF',
+  vermelho: '#EF4444',
+  azul: '#3B82F6',
+  verde: '#10B981',
+  amarelo: '#F59E0B',
+  rosa: '#EC4899',
+  roxo: '#8B5CF6',
+  laranja: '#F97316',
+  bege: '#D4B896',
+  dourado: '#D4AF37',
+  prata: '#C0C0C0',
+  vinho: '#722F37',
+  caramelo: '#C68E17',
+  creme: '#FFFDD0',
+  coral: '#FF7F50',
+  lilás: '#C8A2C8',
+};
+
+function getColorHex(name: string): string {
+  return COLOR_MAP[name.toLowerCase()] ?? '#9CA3AF';
 }
 
 const styles = StyleSheet.create({
@@ -1102,12 +1334,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   detailImageFallbackText: { fontSize: 13, color: '#9CA3AF', fontWeight: '600' },
-  detailThumbRail: { width: 66, height: 260 },
-  detailThumbRailContent: { gap: 6, paddingBottom: 6 },
+  detailThumbRow: { gap: 8, paddingHorizontal: 16, paddingVertical: 10 },
   detailThumb: {
-    width: 66,
-    height: 58,
-    borderRadius: 14,
+    width: 56,
+    height: 56,
+    borderRadius: 12,
     overflow: 'hidden',
     borderWidth: 2,
     borderColor: 'transparent',
@@ -1128,6 +1359,9 @@ const styles = StyleSheet.create({
   detailSection: { gap: 6 },
   detailSectionTitle: { fontSize: 13, fontWeight: '800', color: '#374151', textTransform: 'uppercase', letterSpacing: 0.5 },
   detailDescription: { fontSize: 14, color: '#6B7280', lineHeight: 21 },
+  metaChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999, borderWidth: 1.5, borderColor: '#E5E7EB', backgroundColor: '#F9FAFB' },
+  metaChipText: { fontSize: 13, fontWeight: '700', color: '#374151' },
+  colorDot: { width: 32, height: 32, borderRadius: 16, borderWidth: 2, borderColor: '#E5E7EB' },
   detailMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   detailMetaChip: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#F3F4F6', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8 },
   detailMetaText: { fontSize: 12, color: '#6B7280', fontWeight: '600' },

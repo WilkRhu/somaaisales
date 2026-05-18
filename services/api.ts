@@ -136,13 +136,14 @@ export const tenantApi = {
     }
   },
 
-  async getEstablishmentWithInventory(establishmentId: string, offerId?: string): Promise<Product[]> {
+  async getEstablishmentWithInventory(establishmentId: string, offerId?: string): Promise<{ products: Product[]; establishmentType?: string }> {
     const { data } = await client.get(`/public/establishments/${establishmentId}`, {
       params: offerId ? { offerId } : undefined,
     });
     const establishment = data?.data ?? data;
+    const establishmentType = establishment?.type ?? establishment?.segment ?? establishment?.businessType ?? undefined;
     const inventory: any[] = Array.isArray(establishment?.inventory) ? establishment.inventory : [];
-    return inventory
+    const products = inventory
       .filter((item) => item.isActive !== false)
       .map((item): Product => {
         return {
@@ -153,6 +154,7 @@ export const tenantApi = {
           images: Array.isArray(item.images) ? item.images.filter(Boolean) : item.image ? [item.image] : item.imageUrl ? [item.imageUrl] : [],
           category: item.category ?? 'Geral',
           description: item.description,
+          metadata: item.metadata,
           unit: item.unit,
           currentStock: item.currentStock ?? item.quantity,
           hasOffer: item.hasOffer ?? false,
@@ -160,6 +162,7 @@ export const tenantApi = {
           offerDetails: item.offerDetails,
         };
       });
+    return { products, establishmentType };
   },
 
   async getOffers(establishmentId: string, token?: string): Promise<Offer[]> {

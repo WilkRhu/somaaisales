@@ -65,6 +65,7 @@ export default function StoreSelectionScreen() {
   const [radiusKm, setRadiusKm] = useState('10');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedType, setSelectedType] = useState('ALL');
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [stores, setStores] = useState<NearbyEstablishment[]>([]);
   const [directionsStore, setDirectionsStore] = useState<NearbyEstablishment | null>(null);
   const [routeCoords, setRouteCoords] = useState<{ latitude: number; longitude: number }[]>([]);
@@ -106,6 +107,7 @@ export default function StoreSelectionScreen() {
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const lat = position.coords.latitude;
       const lng = position.coords.longitude;
+      console.log('[StoreSelection] user location:', { latitude: lat, longitude: lng });
       setLatitude(lat);
       setLongitude(lng);
       setLoadingLocation(false);
@@ -140,7 +142,8 @@ export default function StoreSelectionScreen() {
       const ok = await loadTenantByCode(store.id);
       if (!ok) throw new Error('Loja não encontrada');
       const appConfig = await tenantApi.getAppConsumerConfig(store.id);
-      setAppConsumerConfig(appConfig);
+      const storeType = getStoreType(store);
+      setAppConsumerConfig({ ...appConfig, establishmentType: storeType || undefined });
       router.replace('/login');
     } catch (error) {
       console.error('[selectStore] falha', error);
@@ -219,61 +222,73 @@ export default function StoreSelectionScreen() {
 
       {/* Filtros */}
       <View style={styles.filtersCard}>
+        <Pressable style={styles.filtersToggle} onPress={() => setFiltersExpanded(!filtersExpanded)}>
+          <View style={styles.filterLabelRow}>
+            <Ionicons name="options-outline" size={15} color={C.textPrimary} />
+            <Text style={styles.filterLabel}>Filtros</Text>
+          </View>
+          <Ionicons name={filtersExpanded ? 'chevron-up' : 'chevron-down'} size={18} color={C.textMuted} />
+        </Pressable>
+
+        {/* Busca sempre visível */}
         <View style={styles.filterRow}>
           <View style={styles.filterField}>
-            <View style={styles.filterLabelRow}>
-              <Ionicons name="search-outline" size={13} color={C.textPrimary} />
-              <Text style={styles.filterLabel}>Buscar loja</Text>
-            </View>
             <TextInput
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Nome, cidade, bairro..."
-              placeholderTextColor={C.textMuted}
-              style={styles.filterInput}
-            />
-          </View>
-          <View style={[styles.filterField, { flex: 0, width: 90 }]}>
-            <View style={styles.filterLabelRow}>
-              <Ionicons name="locate-outline" size={13} color={C.textPrimary} />
-              <Text style={styles.filterLabel}>Raio</Text>
-            </View>
-            <TextInput
-              value={radiusKm}
-              onChangeText={setRadiusKm}
-              placeholder="10"
-              keyboardType="numeric"
+              placeholder="Buscar loja por nome, cidade..."
               placeholderTextColor={C.textMuted}
               style={styles.filterInput}
             />
           </View>
         </View>
 
-        <View style={styles.typeSection}>
-          <View style={styles.filterLabelRow}>
-            <Ionicons name="pricetags-outline" size={13} color={C.textPrimary} />
-            <Text style={styles.filterLabel}>Tipo de estabelecimento</Text>
-          </View>
-          <View style={styles.typeChipsRow}>
-            <Pressable
-              onPress={() => setSelectedType('ALL')}
-              style={[styles.typeChip, selectedType === 'ALL' && styles.typeChipActive]}>
-              <Text style={[styles.typeChipText, selectedType === 'ALL' && styles.typeChipTextActive]}>
-                Todos
-              </Text>
-            </Pressable>
-            {storeTypes.map((type) => (
-              <Pressable
-                key={type}
-                onPress={() => setSelectedType(type)}
-                style={[styles.typeChip, selectedType === type && styles.typeChipActive]}>
-                <Text style={[styles.typeChipText, selectedType === type && styles.typeChipTextActive]}>
-                  {formatStoreType(type)}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-        </View>
+        {filtersExpanded && (
+          <>
+            <View style={styles.filterRow}>
+              <View style={[styles.filterField, { flex: 0, width: 90 }]}>
+                <View style={styles.filterLabelRow}>
+                  <Ionicons name="locate-outline" size={13} color={C.textPrimary} />
+                  <Text style={styles.filterLabel}>Raio</Text>
+                </View>
+                <TextInput
+                  value={radiusKm}
+                  onChangeText={setRadiusKm}
+                  placeholder="10"
+                  keyboardType="numeric"
+                  placeholderTextColor={C.textMuted}
+                  style={styles.filterInput}
+                />
+              </View>
+            </View>
+
+            <View style={styles.typeSection}>
+              <View style={styles.filterLabelRow}>
+                <Ionicons name="pricetags-outline" size={13} color={C.textPrimary} />
+                <Text style={styles.filterLabel}>Tipo de estabelecimento</Text>
+              </View>
+              <View style={styles.typeChipsRow}>
+                <Pressable
+                  onPress={() => setSelectedType('ALL')}
+                  style={[styles.typeChip, selectedType === 'ALL' && styles.typeChipActive]}>
+                  <Text style={[styles.typeChipText, selectedType === 'ALL' && styles.typeChipTextActive]}>
+                    Todos
+                  </Text>
+                </Pressable>
+                {storeTypes.map((type) => (
+                  <Pressable
+                    key={type}
+                    onPress={() => setSelectedType(type)}
+                    style={[styles.typeChip, selectedType === type && styles.typeChipActive]}>
+                    <Text style={[styles.typeChipText, selectedType === type && styles.typeChipTextActive]}>
+                      {formatStoreType(type)}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Lista */}
@@ -530,14 +545,19 @@ const styles = StyleSheet.create({
     backgroundColor: C.white,
     marginHorizontal: 16,
     marginTop: -1,
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+    borderRadius: 20,
     padding: 14,
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
+  },
+  filtersToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
   },
   filterRow: { flexDirection: 'row', gap: 10 },
   filterField: { flex: 1, gap: 6 },

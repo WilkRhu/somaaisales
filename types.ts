@@ -49,6 +49,7 @@ export type AppConsumerConfig = {
   id: string;
   establishmentId: string;
   establishmentName?: string;
+  establishmentType?: string;
   logo: string;
   appColor: string;
   fontColor?: string;
@@ -110,6 +111,7 @@ export type Product = {
   featured?: boolean;
   // campos extras do inventory
   description?: string;
+  metadata?: string;
   unit?: string;
   currentStock?: number;
   hasOffer?: boolean;
