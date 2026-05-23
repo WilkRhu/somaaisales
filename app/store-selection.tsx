@@ -4,18 +4,19 @@ import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-    Alert,
-    FlatList,
-    Image,
-    KeyboardAvoidingView,
-    Modal,
-    Platform,
-    Pressable,
-    StatusBar,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Alert,
+  Animated,
+  FlatList,
+  Image,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Path, Svg } from 'react-native-svg';
@@ -107,7 +108,6 @@ export default function StoreSelectionScreen() {
       const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
       const lat = position.coords.latitude;
       const lng = position.coords.longitude;
-      console.log('[StoreSelection] user location:', { latitude: lat, longitude: lng });
       setLatitude(lat);
       setLongitude(lng);
       setLoadingLocation(false);
@@ -293,13 +293,7 @@ export default function StoreSelectionScreen() {
 
       {/* Lista */}
       {isLoading ? (
-        <View style={styles.loadingWrap}>
-          <View style={styles.loadingSpinner}>
-            <Ionicons name="storefront-outline" size={32} color={C.bluePrimary} />
-          </View>
-          <Text style={styles.loadingText}>Buscando lojas próximas...</Text>
-          <Text style={styles.loadingSubText}>Aguarde um momento</Text>
-        </View>
+        <LoadingPulse />
       ) : (
         <FlatList
           data={filteredStores}
@@ -462,6 +456,29 @@ function StoreCard({ store, onPress, onDirections }: { store: NearbyEstablishmen
         </View>
       </View>
     </Pressable>
+  );
+}
+
+function LoadingPulse() {
+  const scale = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(scale, { toValue: 1.2, duration: 600, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: 600, useNativeDriver: true }),
+      ]),
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+  return (
+    <View style={styles.loadingWrap}>
+      <Animated.View style={[styles.loadingSpinner, { transform: [{ scale }] }]}>
+        <Ionicons name="storefront-outline" size={32} color={C.bluePrimary} />
+      </Animated.View>
+      <Text style={styles.loadingText}>Buscando lojas próximas...</Text>
+      <Text style={styles.loadingSubText}>Aguarde um momento</Text>
+    </View>
   );
 }
 

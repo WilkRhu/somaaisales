@@ -2,15 +2,15 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  FlatList,
-  Pressable,
-  RefreshControl,
-  StatusBar,
-  StyleSheet,
-  Text,
-  View
+    ActivityIndicator,
+    Alert,
+    FlatList,
+    Pressable,
+    RefreshControl,
+    StatusBar,
+    StyleSheet,
+    Text,
+    View
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
@@ -102,9 +102,7 @@ export default function DeliveryOrdersScreen() {
   const handleReorder = async (order: DeliveryOrder) => {
     try {
       const fullOrder = await deliveryApi.getOrderById(order.id);
-      console.log('[DeliveryOrders][Reorder] Pedido completo:', fullOrder);
       const items = extractReorderItems(fullOrder);
-      console.log('[DeliveryOrders][Reorder] Itens extraídos:', items);
 
       if (items.length === 0) {
         Alert.alert('Pedir novamente', 'Não encontramos os itens deste pedido.');

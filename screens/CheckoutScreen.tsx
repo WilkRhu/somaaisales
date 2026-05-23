@@ -3,19 +3,19 @@ import * as ExpoLocation from 'expo-location';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Image,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  Pressable,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  View
+    ActivityIndicator,
+    Alert,
+    Image,
+    KeyboardAvoidingView,
+    Modal,
+    Platform,
+    Pressable,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    View
 } from 'react-native';
 
 import { AppModal } from '@/components/AppModal';
@@ -98,6 +98,7 @@ export default function CheckoutScreen() {
   const [gettingLocation, setGettingLocation] = useState(false);
   const [newAddrCoords, setNewAddrCoords] = useState<{ latitude: number; longitude: number } | null>(null);
   const [fetchingCep, setFetchingCep] = useState(false);
+  const [modalItem, setModalItem] = useState<typeof items[number] | null>(null);
 
   const deliveryFee = feeData?.deliveryFee ?? 0;
   const total = totalPrice + deliveryFee;
@@ -182,7 +183,7 @@ export default function CheckoutScreen() {
         latitude: address.latitude,
         longitude: address.longitude,
         items: items.map((i) => ({
-          itemId: i.product.id,
+          itemId: i.product.id.split('__')[0],
           productName: i.product.name,
           unitPrice: i.product.price,
           quantity: i.quantity,
@@ -383,7 +384,21 @@ export default function CheckoutScreen() {
                     <Ionicons name="cube-outline" size={12} color="#D1D5DB" />
                   </View>
                 )}
-                <Text style={styles.orderItemName} numberOfLines={1}>{item.product.name}</Text>
+                <Pressable style={{ flex: 1 }} onPress={() => setModalItem(item)}>
+                  <Text style={[styles.orderItemName, { color: primary }]} numberOfLines={1}>
+                    {item.product.name.replace(/\s*\(.*\)\s*$/, '')}
+                  </Text>
+                </Pressable>
+                {(() => {
+                  const variant = item.product.variant || item.product.name.match(/\((.+)\)\s*$/)?.[1];
+                  if (!variant) return null;
+                  return (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 4 }}>
+                      <View style={{ width: 10, height: 10, borderRadius: 5, backgroundColor: '#9CA3AF', borderWidth: 1, borderColor: '#E5E7EB' }} />
+                      <Text style={{ fontSize: 10, color: '#6B7280', fontWeight: '600' }}>{variant}</Text>
+                    </View>
+                  );
+                })()}
                 <Text style={[styles.orderItemPrice, { color: primary }]}>R$ {(item.product.price * item.quantity).toFixed(2)}</Text>
               </View>
               {idx < items.length - 1 && <View style={styles.divider} />}
@@ -524,6 +539,59 @@ export default function CheckoutScreen() {
           </Pressable>
         )}
       </View>
+
+      {/* Modal detalhe do item */}
+      <Modal visible={!!modalItem} transparent animationType="slide" statusBarTranslucent onRequestClose={() => setModalItem(null)}>
+        <Pressable style={styles.modalOverlay} onPress={() => setModalItem(null)}>
+          <Pressable style={[styles.modalSheet, { maxHeight: '60%' }]} onPress={() => {}}>
+            {modalItem && (
+              <>
+                <View style={styles.modalHeader}>
+                  <Text style={styles.modalTitle}>Detalhes do item</Text>
+                  <Pressable onPress={() => setModalItem(null)}>
+                    <Ionicons name="close" size={22} color="#374151" />
+                  </Pressable>
+                </View>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 20, alignItems: 'center', gap: 14 }}>
+                  {getItemImage(modalItem.product) ? (
+                    <Image source={{ uri: getItemImage(modalItem.product)! }} style={{ width: 140, height: 140, borderRadius: 18 }} resizeMode="contain" />
+                  ) : null}
+                  <Text style={{ fontSize: 17, fontWeight: '800', color: '#111827', textAlign: 'center' }}>
+                    {modalItem.product.name.replace(/\s*\(.*\)\s*$/, '')}
+                  </Text>
+                  {(() => {
+                    const variant = modalItem.product.variant || modalItem.product.name.match(/\((.+)\)\s*$/)?.[1];
+                    if (!variant) return null;
+                    const parts = variant.split('•').map((s: string) => s.trim());
+                    return (
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                        {parts[0] && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                            <View style={{ width: 14, height: 14, borderRadius: 7, backgroundColor: '#9CA3AF', borderWidth: 1, borderColor: '#E5E7EB' }} />
+                            <Text style={{ fontSize: 13, color: '#374151', fontWeight: '600' }}>{parts[0]}</Text>
+                          </View>
+                        )}
+                        {parts[1] && (
+                          <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 }}>
+                            <Text style={{ fontSize: 13, color: '#374151', fontWeight: '700' }}>{parts[1]}</Text>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })()}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 4 }}>
+                    <Text style={{ fontSize: 14, color: '#6B7280' }}>Qtd: {modalItem.quantity}</Text>
+                    <Text style={{ fontSize: 14, color: '#6B7280' }}>Unitário: R$ {modalItem.product.price.toFixed(2)}</Text>
+                  </View>
+                  <Text style={{ fontSize: 20, fontWeight: '900', color: primary }}>
+                    R$ {(modalItem.product.price * modalItem.quantity).toFixed(2)}
+                  </Text>
+                </ScrollView>
+              </>
+            )}
+          </Pressable>
+        </Pressable>
+      </Modal>
 
       <AppModal
         visible={invalidChangeModal}

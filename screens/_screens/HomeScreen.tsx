@@ -2,21 +2,21 @@ import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  FlatList,
-  Image,
-  Modal,
-  Pressable,
-  RefreshControl,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  TextInput,
-  useWindowDimensions,
-  View
+    ActivityIndicator,
+    Alert,
+    Animated,
+    FlatList,
+    Image,
+    Modal,
+    Pressable,
+    RefreshControl,
+    ScrollView,
+    StatusBar,
+    StyleSheet,
+    Text,
+    TextInput,
+    useWindowDimensions,
+    View
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Path, Svg } from 'react-native-svg';
@@ -541,7 +541,31 @@ export default function HomeScreen() {
                       </View>
                     )}
                     <View style={styles.previewItemInfo}>
-                      <Text style={styles.previewItemName} numberOfLines={2}>{cartItem.product.name}</Text>
+                      <Text style={styles.previewItemName} numberOfLines={2}>
+                        {cartItem.product.name.replace(/\s*\(.*\)\s*$/, '')}
+                      </Text>
+                      {(() => {
+                        const variant = cartItem.product.variant || cartItem.product.name.match(/\((.+)\)\s*$/)?.[1];
+                        if (!variant) return null;
+                        const parts = variant.split('•').map((s) => s.trim());
+                        const color = parts[0] || null;
+                        const size = parts[1] || null;
+                        return (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            {color && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: getColorHex(color), borderWidth: 1, borderColor: '#E5E7EB' }} />
+                                <Text style={{ fontSize: 11, color: '#6B7280', fontWeight: '600' }}>{color}</Text>
+                              </View>
+                            )}
+                            {size && (
+                              <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                <Text style={{ fontSize: 11, color: '#374151', fontWeight: '700' }}>{size}</Text>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })()}
                       <Text style={[styles.previewItemPrice, { color: primary }]}>
                         R$ {cartItem.product.price.toFixed(2)}{cartItem.product.unit ? ` /${cartItem.product.unit}` : ''}
                       </Text>
@@ -679,6 +703,7 @@ export default function HomeScreen() {
                       ? meta.colorImages[selectedColor].map((i) => allImages[i]).filter(Boolean)
                       : allImages;
                     const safeIndex = detailImageIndex < filteredImages.length ? detailImageIndex : 0;
+                    const currentImageUri = filteredImages[safeIndex] ?? '';
 
                     return (
                       <View>
@@ -694,7 +719,7 @@ export default function HomeScreen() {
                         }}>
                           {filteredImages.length > 0 ? (
                             <Image
-                              source={{ uri: filteredImages[safeIndex] }}
+                              source={{ uri: currentImageUri }}
                               style={styles.detailImage}
                               resizeMode="contain"
                             />
@@ -707,19 +732,37 @@ export default function HomeScreen() {
                           <View style={styles.detailImageShade} />
                         </Pressable>
 
-                        {filteredImages.length > 1 ? (
+                        {allImages.length > 1 ? (
                           <ScrollView
                             horizontal
                             showsHorizontalScrollIndicator={false}
                             contentContainerStyle={styles.detailThumbRow}>
-                            {filteredImages.map((uri, index) => (
-                              <Pressable
-                                key={`${uri}-${index}`}
-                                style={[styles.detailThumb, index === safeIndex && styles.detailThumbActive]}
-                                onPress={() => setDetailImageIndex(index)}>
-                                <Image source={{ uri }} style={styles.detailThumbImage} resizeMode="cover" />
-                              </Pressable>
-                            ))}
+                            {allImages.map((uri, index) => {
+                              const isActive = uri === currentImageUri;
+                              const isInFilter = filteredImages.includes(uri);
+                              return (
+                                <Pressable
+                                  key={`${uri}-${index}`}
+                                  style={[
+                                    styles.detailThumb,
+                                    isActive && styles.detailThumbActive,
+                                    !isInFilter && selectedColor ? { opacity: 0.4 } : null,
+                                  ]}
+                                  onPress={() => {
+                                    // Encontra o índice na lista filtrada
+                                    const filteredIdx = filteredImages.indexOf(uri);
+                                    if (filteredIdx >= 0) {
+                                      setDetailImageIndex(filteredIdx);
+                                    } else {
+                                      // Se clicou numa img fora do filtro, limpa o filtro
+                                      setSelectedColor(null);
+                                      setDetailImageIndex(index);
+                                    }
+                                  }}>
+                                  <Image source={{ uri }} style={styles.detailThumbImage} resizeMode="cover" />
+                                </Pressable>
+                              );
+                            })}
                           </ScrollView>
                         ) : null}
 
@@ -758,7 +801,7 @@ export default function HomeScreen() {
                                           }}
                                           style={[
                                             styles.colorDot,
-                                            { backgroundColor: getColorHex(c) },
+                                            { backgroundColor: getColorHex(c, meta.customColorHex) },
                                             selectedColor === c && { borderColor: primary, borderWidth: 3 },
                                           ]}
                                         />
@@ -914,7 +957,20 @@ export default function HomeScreen() {
                           const variant = needsVariant
                             ? `${selectedColor ?? ''}${selectedColor && selectedSize ? ' • ' : ''}${selectedSize ?? ''}`
                             : undefined;
-                          handleAddItem({ ...selectedProduct, name: variant ? `${selectedProduct.name} (${variant})` : selectedProduct.name });
+                          const variantId = variant ? `${selectedProduct.id}__${selectedColor ?? ''}_${selectedSize ?? ''}` : selectedProduct.id;
+                          // Usa a imagem da cor selecionada
+                          let variantImage = selectedProduct.image;
+                          if (selectedColor && meta?.colorImages?.[selectedColor]) {
+                            const allImgs = getProductImages(selectedProduct);
+                            const colorIdx = meta.colorImages[selectedColor][0];
+                            if (allImgs[colorIdx]) variantImage = allImgs[colorIdx];
+                          }
+                          handleAddItem({
+                            ...selectedProduct,
+                            id: variantId,
+                            image: variantImage,
+                            variant: variant || undefined,
+                          });
                           setSelectedProduct(null);
                         }}>
                         <Ionicons name="bag-add-outline" size={20} color="#fff" />
@@ -1012,7 +1068,15 @@ export default function HomeScreen() {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
               <Image
-                source={{ uri: getProductImages(selectedProduct)[detailImageIndex] ?? selectedProduct?.image ?? '' }}
+                source={{ uri: (() => {
+                  const allImgs = getProductImages(selectedProduct);
+                  const meta = appConsumerConfig?.establishmentType === 'Loja de Roupas' ? parseProductMetadata(selectedProduct) : null;
+                  const filtered = (selectedColor && meta?.colorImages?.[selectedColor])
+                    ? meta.colorImages[selectedColor].map((i) => allImgs[i]).filter(Boolean)
+                    : allImgs;
+                  const idx = detailImageIndex < filtered.length ? detailImageIndex : 0;
+                  return filtered[idx] ?? selectedProduct?.image ?? '';
+                })() }}
                 style={{ width: screenWidth, height: screenWidth * 1.2 }}
                 resizeMode="contain"
               />
@@ -1036,6 +1100,7 @@ type ProductMetadata = {
   material?: string;
   gender?: string;
   colorImages?: Record<string, number[]>;
+  customColorHex?: Record<string, string>;
 };
 
 function parseProductMetadata(product: Product | null): ProductMetadata | null {
@@ -1053,37 +1118,49 @@ function parseProductMetadata(product: Product | null): ProductMetadata | null {
       try {
         raw = JSON.parse(match[1]);
       } catch {
-        // Tenta limpar aspas escapadas
         try {
-          const cleaned = match[1].replace(/\\"/g, '"');
-          raw = JSON.parse(cleaned);
+          raw = JSON.parse(match[1].replace(/\\"/g, '"'));
         } catch { /* ignore */ }
       }
     }
   }
   if (!raw) return null;
   try {
+    // colorImages
     let colorImages: Record<string, number[]> | undefined;
     if (raw.colorImages) {
       if (typeof raw.colorImages === 'string') {
-        try {
-          colorImages = JSON.parse(raw.colorImages);
-        } catch {
-          // Tenta limpar aspas escapadas
-          try {
-            colorImages = JSON.parse(raw.colorImages.replace(/\\"/g, '"'));
-          } catch { /* ignore */ }
-        }
+        try { colorImages = JSON.parse(raw.colorImages); } catch { /* ignore */ }
       } else {
         colorImages = raw.colorImages;
       }
     }
+    // sizes: suporta array (novo) ou string com vírgulas (antigo)
+    let sizes: string[] | undefined;
+    if (raw.sizes && Array.isArray(raw.sizes)) {
+      sizes = raw.sizes;
+    } else if (raw.size) {
+      sizes = String(raw.size).split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+    // colors: suporta array (novo) ou string com vírgulas (antigo)
+    let colors: string[] | undefined;
+    if (raw.colors && Array.isArray(raw.colors)) {
+      colors = raw.colors;
+    } else if (raw.color) {
+      colors = String(raw.color).split(',').map((s: string) => s.trim()).filter(Boolean);
+    }
+    // customColorHex
+    let customColorHex: Record<string, string> | undefined;
+    if (raw.customColorHex && typeof raw.customColorHex === 'object') {
+      customColorHex = raw.customColorHex;
+    }
     return {
-      size: raw.size ? String(raw.size).split(',').map((s: string) => s.trim()).filter(Boolean) : undefined,
-      color: raw.color ? String(raw.color).split(',').map((s: string) => s.trim()).filter(Boolean) : undefined,
+      size: sizes,
+      color: colors,
       material: raw.material || undefined,
       gender: raw.gender || undefined,
       colorImages,
+      customColorHex,
     };
   } catch {
     return null;
@@ -1113,7 +1190,8 @@ const COLOR_MAP: Record<string, string> = {
   lilás: '#C8A2C8',
 };
 
-function getColorHex(name: string): string {
+function getColorHex(name: string, custom?: Record<string, string>): string {
+  if (custom?.[name]) return custom[name];
   return COLOR_MAP[name.toLowerCase()] ?? '#9CA3AF';
 }
 

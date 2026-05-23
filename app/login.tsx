@@ -1,12 +1,12 @@
 import { Ionicons } from '@expo/vector-icons';
 import { ResizeMode, Video } from 'expo-av';
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import {
     Image,
     KeyboardAvoidingView,
-    Pressable,
     Platform,
+    Pressable,
     ScrollView,
     StatusBar,
     StyleSheet,
@@ -40,11 +40,14 @@ export default function LoginScreen() {
   const [modal, setModal] = useState<ModalState>(MODAL_CLOSED);
 
   const setAuthSession = useAppStore((state) => state.setAuthSession);
+  const setTenant = useAppStore((state) => state.setTenant);
+  const setAppConsumerConfig = useAppStore((state) => state.setAppConsumerConfig);
+  const clearCart = useAppStore((state) => state.clearCart);
   const tenant = useAppStore((state) => state.tenant);
   const appConsumerConfig = useAppStore((state) => state.appConsumerConfig);
   const theme = useTheme();
 
-  const { isSupported, biometricType, savedCredentials, saveCredentials, authenticate } = useBiometrics();
+  const { isSupported, biometricType, savedCredentials, saveCredentials, clearCredentials, authenticate } = useBiometrics();
 
   const primaryColor = theme.colors.primary;
   const logo = theme.branding.logo;
@@ -55,6 +58,30 @@ export default function LoginScreen() {
 
   const showModal = (state: Omit<ModalState, 'visible'>) =>
     setModal({ visible: true, ...state });
+
+  const handleRemoveUser = () => {
+    showModal({
+      title: 'Remover acesso rápido',
+      message: 'Isso vai limpar todas as informações salvas e o app vai reiniciar como novo. Deseja continuar?',
+      icon: 'trash-outline',
+      iconColor: '#EF4444',
+      buttons: [
+        {
+          text: 'Sim, remover',
+          onPress: async () => {
+            await clearCredentials();
+            setAuthSession(null);
+            setTenant(null);
+            setAppConsumerConfig(null);
+            clearCart();
+            setModal(MODAL_CLOSED);
+            router.replace('/store-selection');
+          },
+        },
+        { text: 'Cancelar', style: 'cancel', onPress: () => setModal(MODAL_CLOSED) },
+      ],
+    });
+  };
 
   const tryBiometricLogin = async () => {
     if (!savedCredentials) {
@@ -219,22 +246,25 @@ export default function LoginScreen() {
 
         <View style={styles.card}>
           {isSupported && savedCredentials && (
-            <Pressable
-              style={[styles.biometricBanner, { borderColor: `${primaryColor}30`, backgroundColor: `${primaryColor}08` }]}
-              onPress={tryBiometricLogin}>
-              <View style={[styles.biometricIconWrap, { backgroundColor: `${primaryColor}15` }]}>
-                <Ionicons name={biometricIcon(biometricType)} size={28} color={primaryColor} />
-              </View>
-              <View style={styles.biometricText}>
-                <Text style={[styles.biometricTitle, { color: primaryColor }]}>
-                  Entrar com {biometricLabel(biometricType)}
-                </Text>
-                <Text style={styles.biometricSub} numberOfLines={1}>
-                  {savedCredentials.establishmentName} · {savedCredentials.email}
-                </Text>
-              </View>
-              <Ionicons name="chevron-forward" size={18} color={primaryColor} />
-            </Pressable>
+            <View style={[styles.biometricBanner, { borderColor: `${primaryColor}30`, backgroundColor: `${primaryColor}08` }]}>
+              <Pressable style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 }} onPress={tryBiometricLogin}>
+                <View style={[styles.biometricIconWrap, { backgroundColor: `${primaryColor}15` }]}>
+                  <Ionicons name={biometricIcon(biometricType)} size={28} color={primaryColor} />
+                </View>
+                <View style={styles.biometricText}>
+                  <Text style={[styles.biometricTitle, { color: primaryColor }]}>
+                    Entrar com {biometricLabel(biometricType)}
+                  </Text>
+                  <Text style={styles.biometricSub} numberOfLines={1}>
+                    {savedCredentials.establishmentName} · {savedCredentials.email}
+                  </Text>
+                </View>
+                <Ionicons name="chevron-forward" size={18} color={primaryColor} />
+              </Pressable>
+              <Pressable style={styles.removeUserBtn} onPress={handleRemoveUser}>
+                <Ionicons name="close-circle" size={22} color="#EF4444" />
+              </Pressable>
+            </View>
           )}
 
           <Text style={styles.cardTitle}>Entrar na conta</Text>
@@ -322,7 +352,7 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: 24 },
   topSection: { minHeight: 260, borderBottomLeftRadius: 28, borderBottomRightRadius: 28, overflow: 'hidden' },
-  topVideo: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%' },
+  topVideo: { ...StyleSheet.absoluteFillObject },
   topOverlay: { flex: 1, paddingTop: 64, paddingBottom: 40, alignItems: 'center', justifyContent: 'center', gap: 10 },
   storeLogo: { width: 80, height: 80, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.2)' },
   logoFallback: { width: 80, height: 80, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
@@ -333,6 +363,7 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 4,
   },
   biometricBanner: { flexDirection: 'row', alignItems: 'center', gap: 12, borderWidth: 1, borderRadius: 16, padding: 14 },
+  removeUserBtn: { padding: 6 },
   biometricIconWrap: { width: 52, height: 52, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   biometricText: { flex: 1, gap: 3 },
   biometricTitle: { fontSize: 14, fontWeight: '800' },

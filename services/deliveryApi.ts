@@ -2,14 +2,14 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios from 'axios';
 
 import {
-  DeliveryCartItem,
-  DeliveryEstablishment,
-  DeliveryFeeResponse,
-  DeliveryOrder,
-  DeliveryOrderRating,
-  DeliveryRatingPayload,
-  DeliveryTrackingEvent,
-  UserAddress
+    DeliveryCartItem,
+    DeliveryEstablishment,
+    DeliveryFeeResponse,
+    DeliveryOrder,
+    DeliveryOrderRating,
+    DeliveryRatingPayload,
+    DeliveryTrackingEvent,
+    UserAddress
 } from '@/types';
 import { API_BASE_URL } from './apiConfig';
 
@@ -180,7 +180,10 @@ export const deliveryApi = {
   async getOrderRating(orderId: string): Promise<DeliveryOrderRating | null> {
     try {
       const { data } = await client.get(`/delivery/ratings/orders/${orderId}`);
-      return data?.data ?? data ?? null;
+      const result = data?.data ?? data ?? null;
+      // Retorna null se não tiver um id válido (API pode retornar objeto vazio)
+      if (!result || !result.id) return null;
+      return result;
     } catch {
       return null;
     }

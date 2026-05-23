@@ -78,7 +78,31 @@ export default function CartScreen() {
                   <View style={styles.item}>
                     <Image source={{ uri: cartItem.product.image }} style={styles.itemImage} />
                     <View style={styles.itemInfo}>
-                      <Text style={styles.itemName} numberOfLines={2}>{cartItem.product.name}</Text>
+                      <Text style={styles.itemName} numberOfLines={2}>
+                        {cartItem.product.name.replace(/\s*\(.*\)\s*$/, '')}
+                      </Text>
+                      {(() => {
+                        const variant = cartItem.product.variant || cartItem.product.name.match(/\((.+)\)\s*$/)?.[1];
+                        if (!variant) return null;
+                        const parts = variant.split('•').map((s: string) => s.trim());
+                        const color = parts[0] || null;
+                        const size = parts[1] || null;
+                        return (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                            {color && (
+                              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                                <View style={{ width: 12, height: 12, borderRadius: 6, backgroundColor: '#9CA3AF', borderWidth: 1, borderColor: '#E5E7EB' }} />
+                                <Text style={{ fontSize: 11, color: '#6B7280', fontWeight: '600' }}>{color}</Text>
+                              </View>
+                            )}
+                            {size && (
+                              <View style={{ backgroundColor: '#F3F4F6', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
+                                <Text style={{ fontSize: 11, color: '#374151', fontWeight: '700' }}>{size}</Text>
+                              </View>
+                            )}
+                          </View>
+                        );
+                      })()}
                       <Text style={[styles.itemPrice, { color: primaryColor }]}>
                         R$ {(cartItem.product.price * cartItem.quantity).toFixed(2)}
                       </Text>

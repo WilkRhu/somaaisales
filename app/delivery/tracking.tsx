@@ -158,7 +158,7 @@ export default function DeliveryTrackingScreen() {
       setTrackingEvents(events);
       if (norm(orderData?.status) === 'DELIVERED') {
         const rating = await deliveryApi.getOrderRating(orderId);
-        setExistingRating(Boolean(rating));
+        setExistingRating(Boolean(rating?.id));
       } else {
         setExistingRating(false);
       }

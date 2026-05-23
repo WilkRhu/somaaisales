@@ -112,6 +112,7 @@ export type Product = {
   // campos extras do inventory
   description?: string;
   metadata?: string;
+  variant?: string;
   unit?: string;
   currentStock?: number;
   hasOffer?: boolean;
