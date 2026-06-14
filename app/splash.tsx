@@ -18,8 +18,8 @@ export default function SplashScreen() {
 
   useEffect(() => {
     void videoRef.current?.playAsync?.();
-    // Fallback: se o vídeo não carregar em 7s, navega mesmo assim
-    const fallback = setTimeout(() => handleVideoEnd(), 7000);
+    // Fallback: se o vídeo não carregar em 8s, navega mesmo assim
+    const fallback = setTimeout(() => handleVideoEnd(), 10000);
     return () => clearTimeout(fallback);
   }, []);
 
