@@ -44,12 +44,8 @@ log "Preparando build APK local..."
 export GRADLE_USER_HOME="${GRADLE_USER_HOME:-/tmp/gradle-home}"
 mkdir -p "$GRADLE_USER_HOME"
 
-if [[ ! -d android ]]; then
-  log "Gerando pasta android com expo prebuild..."
-  CI=1 npx expo prebuild --platform android --clean
-else
-  log "Pasta android já existe, pulando prebuild."
-fi
+log "Gerando pasta android com expo prebuild --clean para refletir a config atual..."
+CI=1 npx expo prebuild --platform android --clean
 
 GRADLEW="./android/gradlew"
 [[ -f "$GRADLEW" ]] || fail "Gradle wrapper não encontrado em android/gradlew."
