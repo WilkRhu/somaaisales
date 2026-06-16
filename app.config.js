@@ -12,7 +12,7 @@ export default {
     slug: appSlug,
     version: '1.0.0',
     orientation: 'portrait',
-    icon: './assets/images/somaaisales-logo.png',
+    icon: './assets/images/icon.png',
     scheme: appSlug,
     userInterfaceStyle: 'automatic',
     newArchEnabled: true,
@@ -53,7 +53,7 @@ export default {
       [
         'expo-notifications',
         {
-          icon: './assets/images/somaaisales-logo.png',
+          icon: './assets/images/icon.png',
           color: '#ffffff',
           sounds: [],
         },
@@ -77,6 +77,9 @@ export default {
     },
     extra: {
       googleMapsApiKey,
+      eas: {
+        projectId: '4c58d952-9280-487d-90ff-b4480db471d8',
+      },
     },
   },
 };
