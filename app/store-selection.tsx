@@ -9,6 +9,7 @@ import {
   FlatList,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -73,6 +74,8 @@ export default function StoreSelectionScreen() {
   const [routeDuration, setRouteDuration] = useState<string | null>(null);
   const mapRef = useRef<MapView>(null);
   const { loadTenantByCode } = useTenant();
+  const googleMapsApiKey = Constants.expoConfig?.extra?.googleMapsApiKey ?? '';
+  const hasGoogleMapsApiKey = googleMapsApiKey.trim().length > 0;
 
   // Busca rota a pé quando abre o modal
   useEffect(() => {
@@ -83,7 +86,12 @@ export default function StoreSelectionScreen() {
     }
     const storeLat = parseFloat(directionsStore.latitude!);
     const storeLng = parseFloat(directionsStore.longitude!);
-    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${storeLat},${storeLng}&mode=walking&key=${Constants.expoConfig?.extra?.googleMapsApiKey ?? ''}`;
+    if (!hasGoogleMapsApiKey) {
+      setRouteCoords([]);
+      setRouteDuration(null);
+      return;
+    }
+    const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${latitude},${longitude}&destination=${storeLat},${storeLng}&mode=walking&key=${googleMapsApiKey}`;
     fetch(url)
       .then((r) => r.json())
       .then((data) => {
@@ -96,6 +104,24 @@ export default function StoreSelectionScreen() {
       .catch(() => {});
   }, [directionsStore, latitude, longitude]);
   const setAppConsumerConfig = useAppStore((state) => state.setAppConsumerConfig);
+
+  const openDirectionsInMaps = async () => {
+    if (!directionsStore || latitude == null || longitude == null) return;
+    const storeLat = parseFloat(directionsStore.latitude!);
+    const storeLng = parseFloat(directionsStore.longitude!);
+    const url = Platform.select({
+      ios: `http://maps.apple.com/?saddr=${latitude},${longitude}&daddr=${storeLat},${storeLng}&dirflg=w`,
+      android: `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${storeLat},${storeLng}&travelmode=walking`,
+      default: `https://www.google.com/maps/dir/?api=1&origin=${latitude},${longitude}&destination=${storeLat},${storeLng}&travelmode=walking`,
+    });
+    if (!url) return;
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert('Mapa indisponível', 'Não foi possível abrir o aplicativo de mapas neste aparelho.');
+      return;
+    }
+    await Linking.openURL(url);
+  };
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -335,9 +361,15 @@ export default function StoreSelectionScreen() {
               <View>
                 <Text style={styles.mapModalTitle}>Como chegar</Text>
                 <Text style={styles.mapModalSubtitle} numberOfLines={1}>{directionsStore?.nome}</Text>
-                {routeDuration && (
+                {routeDuration ? (
                   <Text style={styles.mapModalDuration}>
                     <Ionicons name="walk-outline" size={13} color={C.bluePrimary} /> {routeDuration} a pé
+                  </Text>
+                ) : (
+                  <Text style={styles.mapModalDurationMuted}>
+                    {hasGoogleMapsApiKey
+                      ? 'Calculando rota...'
+                      : 'Mapa nativo desativado neste build para evitar falhas no AAB.'}
                   </Text>
                 )}
               </View>
@@ -347,42 +379,55 @@ export default function StoreSelectionScreen() {
             </View>
 
             {directionsStore && latitude != null && longitude != null && (
-              <MapView
-                ref={mapRef}
-                provider={PROVIDER_DEFAULT}
-                style={styles.mapView}
-                initialRegion={{
-                  latitude: (latitude + parseFloat(directionsStore.latitude!)) / 2,
-                  longitude: (longitude + parseFloat(directionsStore.longitude!)) / 2,
-                  latitudeDelta: Math.abs(latitude - parseFloat(directionsStore.latitude!)) * 2.5 + 0.01,
-                  longitudeDelta: Math.abs(longitude - parseFloat(directionsStore.longitude!)) * 2.5 + 0.01,
-                }}>
-                {/* Marcador do cliente (boneco) */}
-                <Marker coordinate={{ latitude, longitude }} title="Você">
-                  <View style={styles.markerCustom}>
-                    <Ionicons name="person" size={20} color="#fff" />
-                  </View>
-                </Marker>
-                {/* Marcador da loja (empresa) */}
-                <Marker
-                  coordinate={{
-                    latitude: parseFloat(directionsStore.latitude!),
-                    longitude: parseFloat(directionsStore.longitude!),
-                  }}
-                  title={directionsStore.nome}>
-                  <View style={[styles.markerCustom, { backgroundColor: '#EF4444' }]}>
-                    <Ionicons name="storefront" size={20} color="#fff" />
-                  </View>
-                </Marker>
-                {/* Rota a pé */}
-                {routeCoords.length > 1 && (
-                  <Polyline
-                    coordinates={routeCoords}
-                    strokeColor={C.bluePrimary}
-                    strokeWidth={4}
-                  />
-                )}
-              </MapView>
+              hasGoogleMapsApiKey ? (
+                <MapView
+                  ref={mapRef}
+                  provider={PROVIDER_DEFAULT}
+                  style={styles.mapView}
+                  initialRegion={{
+                    latitude: (latitude + parseFloat(directionsStore.latitude!)) / 2,
+                    longitude: (longitude + parseFloat(directionsStore.longitude!)) / 2,
+                    latitudeDelta: Math.abs(latitude - parseFloat(directionsStore.latitude!)) * 2.5 + 0.01,
+                    longitudeDelta: Math.abs(longitude - parseFloat(directionsStore.longitude!)) * 2.5 + 0.01,
+                  }}>
+                  {/* Marcador do cliente (boneco) */}
+                  <Marker coordinate={{ latitude, longitude }} title="Você">
+                    <View style={styles.markerCustom}>
+                      <Ionicons name="person" size={20} color="#fff" />
+                    </View>
+                  </Marker>
+                  {/* Marcador da loja (empresa) */}
+                  <Marker
+                    coordinate={{
+                      latitude: parseFloat(directionsStore.latitude!),
+                      longitude: parseFloat(directionsStore.longitude!),
+                    }}
+                    title={directionsStore.nome}>
+                    <View style={[styles.markerCustom, { backgroundColor: '#EF4444' }]}>
+                      <Ionicons name="storefront" size={20} color="#fff" />
+                    </View>
+                  </Marker>
+                  {/* Rota a pé */}
+                  {routeCoords.length > 1 && (
+                    <Polyline
+                      coordinates={routeCoords}
+                      strokeColor={C.bluePrimary}
+                      strokeWidth={4}
+                    />
+                  )}
+                </MapView>
+              ) : (
+                <View style={styles.mapFallback}>
+                  <Ionicons name="map-outline" size={34} color={C.bluePrimary} />
+                  <Text style={styles.mapFallbackTitle}>Pré-visualização indisponível</Text>
+                  <Text style={styles.mapFallbackText}>
+                    Para evitar o app fechar no AAB, a rota será aberta no aplicativo de mapas do aparelho.
+                  </Text>
+                  <Pressable style={styles.mapFallbackButton} onPress={openDirectionsInMaps}>
+                    <Text style={styles.mapFallbackButtonText}>Abrir no mapa</Text>
+                  </Pressable>
+                </View>
+              )
             )}
 
             <View style={styles.mapModalFooter}>
@@ -753,6 +798,39 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 350,
   },
+  mapFallback: {
+    width: '100%',
+    height: 350,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+    gap: 10,
+    backgroundColor: '#F8FAFC',
+  },
+  mapFallbackTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: C.textPrimary,
+    textAlign: 'center',
+  },
+  mapFallbackText: {
+    fontSize: 13,
+    color: C.textMuted,
+    textAlign: 'center',
+    lineHeight: 18,
+  },
+  mapFallbackButton: {
+    marginTop: 4,
+    backgroundColor: C.bluePrimary,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  mapFallbackButtonText: {
+    color: C.white,
+    fontSize: 13,
+    fontWeight: '800',
+  },
   mapModalFooter: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -768,6 +846,12 @@ const styles = StyleSheet.create({
   mapModalDuration: {
     fontSize: 13,
     color: C.bluePrimary,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+  mapModalDurationMuted: {
+    fontSize: 13,
+    color: C.textMuted,
     fontWeight: '600',
     marginTop: 4,
   },
