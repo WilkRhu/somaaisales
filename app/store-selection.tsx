@@ -23,6 +23,7 @@ import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { Path, Svg } from 'react-native-svg';
 
 import { EmptyState } from '@/components/EmptyState';
+import { MapFallbackPreview } from '@/components/MapFallbackPreview';
 import { useTenant } from '@/contexts/TenantContext';
 import { tenantApi } from '@/services/api';
 import { useAppStore } from '@/store';
@@ -172,7 +173,6 @@ export default function StoreSelectionScreen() {
       setAppConsumerConfig({ ...appConfig, establishmentType: storeType || undefined });
       router.replace('/login');
     } catch (error) {
-      console.error('[selectStore] falha', error);
       Alert.alert('Erro', error instanceof Error ? error.message : 'Falha ao carregar a loja');
     }
   };
@@ -417,16 +417,25 @@ export default function StoreSelectionScreen() {
                   )}
                 </MapView>
               ) : (
-                <View style={styles.mapFallback}>
-                  <Ionicons name="map-outline" size={34} color={C.bluePrimary} />
-                  <Text style={styles.mapFallbackTitle}>Pré-visualização indisponível</Text>
+                <MapFallbackPreview
+                  primaryLabel="Google Maps de fallback"
+                  emptyLabel="Mapa principal"
+                  title={directionsStore.nome}
+                  subtitle={directionsStore.address ?? directionsStore.description ?? 'Endereço não informado'}
+                  origin={latitude != null && longitude != null ? { latitude, longitude } : null}
+                  destination={{
+                    latitude: parseFloat(directionsStore.latitude!),
+                    longitude: parseFloat(directionsStore.longitude!),
+                  }}
+                  routeLength={routeCoords.length}
+                  routeLabel={routeDuration ? `${routeDuration} a pé` : 'rota no modo seguro'}
+                  actionLabel="Abrir no mapa externo"
+                  onActionPress={openDirectionsInMaps}
+                  accentColor={C.bluePrimary}>
                   <Text style={styles.mapFallbackText}>
-                    Para evitar o app fechar no AAB, a rota será aberta no aplicativo de mapas do aparelho.
+                    Este é o mapa principal de fallback quando o Google Maps nativo não estiver disponível.
                   </Text>
-                  <Pressable style={styles.mapFallbackButton} onPress={openDirectionsInMaps}>
-                    <Text style={styles.mapFallbackButtonText}>Abrir no mapa</Text>
-                  </Pressable>
-                </View>
+                </MapFallbackPreview>
               )
             )}
 
@@ -798,38 +807,11 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 350,
   },
-  mapFallback: {
-    width: '100%',
-    height: 350,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
-    gap: 10,
-    backgroundColor: '#F8FAFC',
-  },
-  mapFallbackTitle: {
-    fontSize: 16,
-    fontWeight: '800',
-    color: C.textPrimary,
-    textAlign: 'center',
-  },
   mapFallbackText: {
     fontSize: 13,
     color: C.textMuted,
     textAlign: 'center',
     lineHeight: 18,
-  },
-  mapFallbackButton: {
-    marginTop: 4,
-    backgroundColor: C.bluePrimary,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  mapFallbackButtonText: {
-    color: C.white,
-    fontSize: 13,
-    fontWeight: '800',
   },
   mapModalFooter: {
     flexDirection: 'row',

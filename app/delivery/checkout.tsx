@@ -141,14 +141,11 @@ export default function DeliveryCheckoutScreen() {
   }, [address, establishmentId, subtotal]);
 
   const handleSubmit = async () => {
-    console.log('[handleSubmit] iniciado', { address, user: authSession?.user?.id, establishmentId, cart: cart.length });
     if (!authSession?.user || !address || !establishmentId) {
-      console.log('[handleSubmit] bloqueado: sem sessão, endereço ou establishmentId');
       Alert.alert('Atenção', 'Verifique seu endereço e tente novamente.');
       return;
     }
     if (cart.length === 0) {
-      console.log('[handleSubmit] bloqueado: carrinho vazio');
       Alert.alert('Carrinho vazio', 'Adicione produtos antes de finalizar.');
       return;
     }
@@ -190,15 +187,12 @@ export default function DeliveryCheckoutScreen() {
         discount: 0,
         addressId: address.id,
       };
-      console.log('[createOrder] rota:', `POST /public/delivery/establishments/${establishmentId}/orders`);
-      console.log('[createOrder] payload:', JSON.stringify(payload, null, 2));
       const order = await deliveryApi.createOrder(establishmentId, payload);
 
       await deliveryApi.clearCart(establishmentId);
       setCreatedOrderId(order.id);
       setSuccessModal(true);
     } catch (err: any) {
-      console.error('[createOrder]', JSON.stringify(err?.response?.data ?? err?.message ?? err, null, 2));
       const raw = err?.response?.data?.message;
       const msg = Array.isArray(raw) ? raw.join('\n') : (raw ?? 'Não foi possível criar o pedido.');
       Alert.alert('Erro', msg);

@@ -3,6 +3,9 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
     ActivityIndicator,
+    Alert,
+    Linking,
+    Platform,
     Pressable,
     RefreshControl,
     ScrollView,
@@ -12,9 +15,11 @@ import {
     View,
 } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_DEFAULT, Region } from 'react-native-maps';
+import Constants from 'expo-constants';
 
 import { AppModal } from '@/components/AppModal';
 import { HeaderWave } from '@/components/HeaderWave';
+import { MapFallbackPreview } from '@/components/MapFallbackPreview';
 import { useTheme } from '@/contexts/ThemeContext';
 import { useDeliverySocket } from '@/hooks/useDeliverySocket';
 import { deliveryApi, setDeliveryAuthToken } from '@/services/deliveryApi';
@@ -101,6 +106,8 @@ export default function DeliveryTrackingScreen() {
   const [routeTrail, setRouteTrail] = useState<{ latitude: number; longitude: number }[]>([]);
   const [zoomDelta, setZoomDelta] = useState(0.02);
   const currentRegionRef = useRef<Region | null>(null);
+  const googleMapsApiKey = Constants.expoConfig?.extra?.googleMapsApiKey ?? '';
+  const hasGoogleMapsApiKey = googleMapsApiKey.trim().length > 0;
 
   useEffect(() => {
     if (!isOutForDelivery || !orderId) return;
@@ -138,6 +145,22 @@ export default function DeliveryTrackingScreen() {
         longitudeDelta: newDelta,
       }, 300);
     }
+  };
+
+  const openMapsFallback = async () => {
+    if (!displayLocation) return;
+    const url = Platform.select({
+      ios: `http://maps.apple.com/?daddr=${displayLocation.latitude},${displayLocation.longitude}&dirflg=d`,
+      android: `https://www.google.com/maps/search/?api=1&query=${displayLocation.latitude},${displayLocation.longitude}`,
+      default: `https://www.google.com/maps/search/?api=1&query=${displayLocation.latitude},${displayLocation.longitude}`,
+    });
+    if (!url) return;
+    const canOpen = await Linking.canOpenURL(url);
+    if (!canOpen) {
+      Alert.alert('Mapa indisponível', 'Não foi possível abrir o aplicativo de mapas neste aparelho.');
+      return;
+    }
+    await Linking.openURL(url);
   };
 
   useEffect(() => {
@@ -313,46 +336,65 @@ export default function DeliveryTrackingScreen() {
                 </View>
               </View>
 
-              <MapView
-                ref={mapRef}
-                style={styles.map}
-                provider={PROVIDER_DEFAULT}
-                onRegionChange={(r) => { currentRegionRef.current = r; }}
-                initialRegion={{
-                  latitude: displayLocation?.latitude ?? -23.5505,
-                  longitude: displayLocation?.longitude ?? -46.6333,
-                  latitudeDelta: zoomDelta,
-                  longitudeDelta: zoomDelta,
-                }}
-                showsUserLocation
-                showsMyLocationButton={false}>
+              {hasGoogleMapsApiKey ? (
+                <MapView
+                  ref={mapRef}
+                  style={styles.map}
+                  provider={PROVIDER_DEFAULT}
+                  onRegionChange={(r) => { currentRegionRef.current = r; }}
+                  initialRegion={{
+                    latitude: displayLocation?.latitude ?? -23.5505,
+                    longitude: displayLocation?.longitude ?? -46.6333,
+                    latitudeDelta: zoomDelta,
+                    longitudeDelta: zoomDelta,
+                  }}
+                  showsUserLocation
+                  showsMyLocationButton={false}>
 
-                {/* Trilha percorrida */}
-                {routeTrail.length > 1 && (
-                  <Polyline
-                    coordinates={routeTrail}
-                    strokeColor={statusColor}
-                    strokeWidth={4}
-                    lineDashPattern={[0]}
-                    lineJoin="round"
-                    lineCap="round"
-                  />
-                )}
+                  {/* Trilha percorrida */}
+                  {routeTrail.length > 1 && (
+                    <Polyline
+                      coordinates={routeTrail}
+                      strokeColor={statusColor}
+                      strokeWidth={4}
+                      lineDashPattern={[0]}
+                      lineJoin="round"
+                      lineCap="round"
+                    />
+                  )}
 
-                {displayLocation && (
-                  <Marker
-                    coordinate={{
-                      latitude: displayLocation.latitude,
-                      longitude: displayLocation.longitude,
-                    }}
-                    title="Entregador"
-                    description="Posição atual do entregador">
-                    <View style={[styles.driverMarker, { backgroundColor: statusColor }]}>
-                      <Ionicons name="bicycle" size={18} color="#fff" />
-                    </View>
-                  </Marker>
-                )}
-              </MapView>
+                  {displayLocation && (
+                    <Marker
+                      coordinate={{
+                        latitude: displayLocation.latitude,
+                        longitude: displayLocation.longitude,
+                      }}
+                      title="Entregador"
+                      description="Posição atual do entregador">
+                      <View style={[styles.driverMarker, { backgroundColor: statusColor }]}>
+                        <Ionicons name="bicycle" size={18} color="#fff" />
+                      </View>
+                    </Marker>
+                  )}
+                </MapView>
+              ) : (
+                <MapFallbackPreview
+                  primaryLabel="Google Maps de fallback"
+                  emptyLabel="Mapa principal"
+                  title="Entregador em rota"
+                  subtitle={displayLocation ? `Posição: ${displayLocation.latitude.toFixed(5)}, ${displayLocation.longitude.toFixed(5)}` : 'Aguardando localização do entregador'}
+                  origin={null}
+                  destination={displayLocation}
+                  routeLength={routeTrail.length}
+                  routeLabel={connected ? 'ao vivo' : 'conectando'}
+                  actionLabel="Abrir no mapa externo"
+                  onActionPress={openMapsFallback}
+                  accentColor={primary}>
+                  <Text style={styles.mapFallbackText}>
+                    Este é o mapa principal de fallback quando o Google Maps nativo não estiver disponível.
+                  </Text>
+                </MapFallbackPreview>
+              )}
 
               {/* Botões de zoom */}
               <View style={styles.zoomControls}>
@@ -629,6 +671,7 @@ const styles = StyleSheet.create({
   socketDot: { width: 7, height: 7, borderRadius: 4 },
   socketText: { fontSize: 11, fontWeight: '700' },
   map: { height: 220, width: '100%' },
+  mapFallbackText: { fontSize: 13, color: '#6B7280', textAlign: 'center', lineHeight: 18 },
   zoomControls: {
     position: 'absolute',
     right: 12,

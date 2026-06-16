@@ -1,7 +1,7 @@
 import * as Notifications from 'expo-notifications';
-import { useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
 import { router } from 'expo-router';
+import { useEffect, useRef } from 'react';
+import { Alert, Platform } from 'react-native';
 
 import { authApi } from '@/services/api';
 import { useAppStore } from '@/store';
@@ -19,22 +19,30 @@ Notifications.setNotificationHandler({
 
 export function usePushNotifications() {
   const authSession = useAppStore((s) => s.authSession);
+  const appConsumerConfig = useAppStore((s) => s.appConsumerConfig);
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
+  const permissionAskedRef = useRef(false);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    if (permissionAskedRef.current) return;
+    permissionAskedRef.current = true;
+    void requestNotificationPermission();
+  }, []);
 
   useEffect(() => {
     if (!authSession?.accessToken) return;
 
-    void registerForPushNotifications(authSession.accessToken);
+    void registerForPushNotifications(authSession.accessToken, appConsumerConfig?.establishmentId ?? undefined);
 
     // Escuta notificações recebidas em foreground
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
-      console.log('[Push] Notificação recebida:', notification);
+      void notification;
     });
 
     // Escuta quando o usuário toca na notificação
     responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
-      console.log('[Push] Notificação tocada:', response);
       const data = response.notification.request.content.data as Record<string, any> | undefined;
       const orderId = data?.orderId as string | undefined;
       const route = data?.route as string | undefined;
@@ -59,10 +67,23 @@ export function usePushNotifications() {
       notificationListener.current?.remove();
       responseListener.current?.remove();
     };
-  }, [authSession?.accessToken]);
+  }, [authSession?.accessToken, appConsumerConfig?.establishmentId]);
 }
 
-async function registerForPushNotifications(token: string) {
+async function requestNotificationPermission() {
+  const { status: existingStatus } = await Notifications.getPermissionsAsync();
+  if (existingStatus === 'granted') return;
+
+  const { status } = await Notifications.requestPermissionsAsync();
+  if (status !== 'granted') {
+    Alert.alert(
+      'Notificações desativadas',
+      'Se você permitir notificações, o app poderá avisar sobre pedidos e atualizações.',
+    );
+  }
+}
+
+async function registerForPushNotifications(token: string, establishmentId?: string) {
   if (Platform.OS === 'web') return;
 
   // Verifica se o device suporta notificações
@@ -75,15 +96,21 @@ async function registerForPushNotifications(token: string) {
   }
 
   if (finalStatus !== 'granted') {
-    console.log('[Push] Permissão negada');
+    Alert.alert(
+      'Notificações desativadas',
+      'Sem permissão para notificações, você não vai receber alertas de pedido.',
+    );
     return;
   }
 
   try {
     const pushToken = await Notifications.getExpoPushTokenAsync();
-    await authApi.savePushToken(token, pushToken.data);
-    console.log('[Push] Token registrado:', pushToken.data);
+    await authApi.savePushToken(token, pushToken.data, { establishmentId });
   } catch (err) {
-    console.warn('[Push] Erro ao registrar token:', err);
+    const status = (err as { response?: { status?: number } } | undefined)?.response?.status;
+    const message = status === 404
+      ? 'O backend não encontrou a rota para salvar o push token.'
+      : 'Não foi possível registrar o push token neste aparelho.';
+    Alert.alert('Push não ativado', message);
   }
 }

@@ -45,10 +45,18 @@ export const authApi = {
     return data?.data ?? data;
   },
 
-  async savePushToken(token: string, pushToken: string): Promise<void> {
+  async savePushToken(
+    token: string,
+    pushToken: string,
+    metadata?: { establishmentId?: string },
+  ): Promise<void> {
     await client.post(
       '/public/customers/me/push-token',
-      { pushToken, platform: require('react-native').Platform.OS },
+      {
+        token: pushToken,
+        platform: require('react-native').Platform.OS,
+        metadata: metadata ?? {},
+      },
       { headers: { Authorization: `Bearer ${token}` } },
     );
   },
